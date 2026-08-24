@@ -1,16 +1,14 @@
-# 📚 IW Knowledge Base
+# 🧠 IW Knowledge Base (Intelligence Vault)
 
-This repository is a centralized vault for all my technical research, notes from elite cybersecurity books, and in-depth system analysis.
+This repository functions as the primary research vault for **IW Cyber Ops**. It contains systematic documentation, architecture diagrams, and deep-dive analysis of complex technical systems.
 
-## 📂 Vault Structure
-- **01-Linux-Internals**: Mastery of the Shell, FHS, and Kernel basics.
-- **02-Networking-Theory**: Deep dive into TCP/IP, OSI, and Packet Analysis.
-- **03-Python-Documentation**: Logic structures and offensive programming notes.
-- **04-Hardware-Research**: Electronics, Logic Gates, and SCADA basics.
+## 📂 Vault Hierarchy
+- **`systems-internals/`**: Deep analysis of Windows/Linux kernel architectures.
+- **`binary-analysis/`**: Research on ELF/PE layouts, disassembly patterns, and compiler optimizations.
+- **`protocol-engineering/`**: Packet-level dissection of network and hardware bus protocols (SPI, I2C, JTAG).
+- **`vulnerability-research/`**: Documentation of historical CVEs, root-cause analysis, and variant hunting methodologies.
 
-## 📖 Current Readings
-- *The Linux Command Line* by William Shotts (Ch 1-23 Target)
-- *TCP/IP Illustrated* by Richard Stevens
-- *Black Hat Python* by Justin Seitz
+## 📖 Ongoing Research
+Implementing a rigorous systems-heavy curriculum, focusing on daily immersion in C, Assembly (x86-64/ARM64), and hardware architecture to bridge the gap between software and silicon.
 
-*"Information is the raw material of warfare. I curate it with precision."*
+*"Information is the raw material of modern warfare. I curate it with precision."*
