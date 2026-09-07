@@ -62,34 +62,34 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 
 - [📁 19-hardware-buses-debug-interfaces/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/19-hardware-buses-debug-interfaces) — Electrical logic levels, UART interception, SPI flash chip dumping, and I2C/JTAG analysis.
 - [📁 20-firmware-bootloaders-emulation/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/20-firmware-bootloaders-emulation) — SquashFS extraction, U-Boot hijacking, QEMU system emulation, and NVRAM hooking.
-- [📁 21-hypervisors-virtualization/]() — Intel VMX/VMCS, KVM kernel module, MMIO/PIO device emulation, and VM escape mechanics.
-- [📁 22-coverage-guided-fuzzing-asan/]() — AFL++ bitmaps, LibFuzzer harness design, and AddressSanitizer (ASan) shadow memory.
-- [📁 23-program-analysis-cfg-taint/]() — Intermediate Representations (LLVM IR, Ghidra P-Code), SSA form, and source-sink taint tracking.
-- [📁 24-glibc-heap-exploitation/]() — ptmalloc2 arena mechanics, tcache poisoning, safe-linking bypasses, and chunk metadata corruption.
-- [📁 25-browser-security-v8-engine/]() — Multi-process sandbox, V8 Ignition/TurboFan pipelines, Maps/Hidden Classes, and pointer tagging.
-- [📁 26-protocol-re-format-fuzzing/]() — Binary protocol inference, Kaitai Struct models, and grammar-based structural fuzzing.
-- [📁 27-full-stack-systems-capstone/]() — Integrated full-stack audit across hardware, firmware, hypervisors, and parsers.
+- [📁 21-hypervisors-virtualization/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/21-hypervisors-virtualization) — Intel VMX/VMCS, KVM kernel module, MMIO/PIO device emulation, and VM escape mechanics.
+- [📁 22-coverage-guided-fuzzing-asan/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/22-coverage-guided-fuzzing-asan) — AFL++ bitmaps, LibFuzzer harness design, and AddressSanitizer (ASan) shadow memory.
+- [📁 23-program-analysis-cfg-taint/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/23-program-analysis-cfg-taint) — Intermediate Representations (LLVM IR, Ghidra P-Code), SSA form, and source-sink taint tracking.
+- [📁 24-glibc-heap-exploitation/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/24-glibc-heap-exploitation) — ptmalloc2 arena mechanics, tcache poisoning, safe-linking bypasses, and chunk metadata corruption.
+- [📁 25-browser-security-v8-engine/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/25-browser-security-v8-engine) — Multi-process sandbox, V8 Ignition/TurboFan pipelines, Maps/Hidden Classes, and pointer tagging.
+- [📁 26-protocol-re-format-fuzzing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/26-protocol-re-format-fuzzing) — Binary protocol inference, Kaitai Struct models, and grammar-based structural fuzzing.
+- [📁 27-full-stack-systems-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/27-full-stack-systems-capstone) — Integrated full-stack audit across hardware, firmware, hypervisors, and parsers.
 <br>
 ### 🔬 Phase 04: Deep Vulnerability Research & Advanced Analysis (M28–M35)
 
-📁 28-in-memory-snapshot-fuzzing/ — Persistent mode __AFL_LOOP, Nyx/WTF snapshot restoration, and Intel PT execution tracing.
-📁 29-symbolic-execution-z3-angr/ — SMT constraint solving with Z3, angr concolic path exploration, and Driller hybrid fuzzing.
-📁 30-concurrency-race-conditions/ — Memory barriers, TOCTOU flaws, double-fetch bugs, and ThreadSanitizer (TSan) diagnostics.
-📁 31-patch-diffing-git-archaeology/ — BinDiff binary matching, Git archaeology (git bisect), and variant pattern extraction.
-📁 32-variant-analysis-codeql/ — Code as data, writing custom CodeQL AST queries, and scanning enterprise repositories.
-📁 33-modern-mitigations-cet-pac/ — Clang CFI, Intel CET (Shadow Stacks/IBT), ARM PAC/BTI, and Data-Only Attacks (DOP).
-📁 34-side-channels-cache-timing/ — Out-of-order execution, Flush+Reload covert channels, Spectre V1, and Meltdown mechanics.
-📁 35-independent-vr-capstone/ — End-to-end vulnerability research workflow on complex open-source software.
+- [📁 28-in-memory-snapshot-fuzzing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/28-in-memory-snapshot-fuzzing) — Persistent mode __AFL_LOOP, Nyx/WTF snapshot restoration, and Intel PT execution tracing.
+- [📁 29-symbolic-execution-z3-angr/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/29-symbolic-execution-z3-angr) — SMT constraint solving with Z3, angr concolic path exploration, and Driller hybrid fuzzing.
+- [📁 30-concurrency-race-conditions/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/30-concurrency-race-conditions) — Memory barriers, TOCTOU flaws, double-fetch bugs, and ThreadSanitizer (TSan) diagnostics.
+- [📁 31-patch-diffing-git-archaeology/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/31-patch-diffing-git-archaeology) — BinDiff binary matching, Git archaeology (git bisect), and variant pattern extraction.
+- [📁 32-variant-analysis-codeql/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/32-variant-analysis-codeql) — Code as data, writing custom CodeQL AST queries, and scanning enterprise repositories.
+- [📁 33-modern-mitigations-cet-pac/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/33-modern-mitigations-cet-pac) — Clang CFI, Intel CET (Shadow Stacks/IBT), ARM PAC/BTI, and Data-Only Attacks (DOP).
+- [📁 34-side-channels-cache-timing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/34-side-channels-cache-timing) — Out-of-order execution, Flush+Reload covert channels, Spectre V1, and Meltdown mechanics.
+- [📁 35-independent-vr-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/35-independent-vr-capstone) — End-to-end vulnerability research workflow on complex open-source software.
 <br>
 ### 👑 Phase 05: Advanced Specialization & Independent Research (M36–M42)
 
-📁 36-specialization-source-tree-dive/ — Multi-million line target source tree compilation, build mapping, and trust boundaries.
-📁 37-subsystem-attack-surface-audit/ — Line-by-line manual code audit of isolated subsystems (JIT, Drivers, IPC).
-📁 38-specialized-fuzzer-engineering/ — Custom domain fuzzers, target-specific mutators, and distributed scaling.
-📁 39-target-patch-diffing-variants/ — Mining security commits, historical vulnerability variant hunting, and PoC verification.
-📁 40-independent-research-project-1/ — Autonomous discovery cycle against primary specialization target.
-📁 41-independent-research-project-2/ — Secondary domain audit and upstream open-source patch/tool contribution.
-📁 42-elite-research-capstone-defense/ — The 50+ Page Master Research Portfolio & 0-Day Discovery Defense.
+- [📁 36-specialization-source-tree-dive/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/36-specialization-source-tree-dive) — Multi-million line target source tree compilation, build mapping, and trust boundaries.
+- [📁 37-subsystem-attack-surface-audit/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/37-subsystem-attack-surface-audit) — Line-by-line manual code audit of isolated subsystems (JIT, Drivers, IPC).
+- [📁 38-specialized-fuzzer-engineering/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/38-specialized-fuzzer-engineering) — Custom domain fuzzers, target-specific mutators, and distributed scaling.
+- [📁 39-target-patch-diffing-variants/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/39-target-patch-diffing-variants) — Mining security commits, historical vulnerability variant hunting, and PoC verification.
+- [📁 40-independent-research-project-1/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/40-independent-research-project-1) — Autonomous discovery cycle against primary specialization target.
+- [📁 41-independent-research-project-2/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/41-independent-research-project-2) — Secondary domain audit and upstream open-source patch/tool contribution.
+- [📁 42-elite-research-capstone-defense/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/42-elite-research-capstone-defense) — The 50+ Page Master Research Portfolio & 0-Day Discovery Defense.
 <br><br>
 ## 📝 The 10-Point Technical Documentation Standard
 
