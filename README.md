@@ -126,12 +126,12 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 ## 🌐 Official Channels & Research Verification
 <br>
 
-**🐙 GitHub Organization:** github.com/iwcyberops <br>
-**📺 YouTube Channel:** youtube.com/@iwcyberops <br>
-**📱 TikTok Research:** tiktok.com/@iwcyberops <br>
-**📸 Instagram:** instagram.com/@iwcyberops <br>
-**✖️ X / Twitter:** x.com/iwcyberops <br>
-**📧 Direct Contact:** iwcyberops@gmail.com <br>
+- [**🐙 GitHub Organization:**](https://github.com/iwcyberops) github.com/iwcyberops <br>
+- [**📺 YouTube Channel:**](https://youtube.com/@iwcyberops) youtube.com/@iwcyberops <br>
+- [**📱 TikTok Research:**](https://tiktok.com/@iwcyberops) tiktok.com/@iwcyberops <br>
+- [**📸 Instagram:**](https://instagram.com/@iwcyberops) instagram.com/@iwcyberops <br>
+- [**✖️ X / Twitter:**](https://x.com/iwcyberops) x.com/iwcyberops <br>
+- [**📧 Direct Contact:**](iwcyberops@gmail.com) iwcyberops@gmail.com <br>
 <br>
 
 ---
