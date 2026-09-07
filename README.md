@@ -61,8 +61,8 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 16-mobile-security-android-frida/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/16-mobile-security-android-frida) — ART internals, Smali bytecode patching, Frida dynamic hooking, and native JNI .so reversing.
 - [📁 17-cloud-container-kubernetes/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/17-cloud-container-kubernetes) — Cloud IAM topologies, Linux namespaces/cgroups, Docker breakouts, and Kubernetes RBAC.
 - [📁 18-offensive-operations-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/18-offensive-operations-capstone) — Full-chain adversary emulation, direct NT syscalls, and 30+ page enterprise capstone.
-
 <br>
+
 ---
 
 ### ⚡ Phase 03: Hardware, Firmware, Advanced Fuzzing & Systems (M19–M27)
@@ -76,8 +76,8 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 25-browser-security-v8-engine/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/25-browser-security-v8-engine) — Multi-process sandbox, V8 Ignition/TurboFan pipelines, Maps/Hidden Classes, and pointer tagging.
 - [📁 26-protocol-re-format-fuzzing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/26-protocol-re-format-fuzzing) — Binary protocol inference, Kaitai Struct models, and grammar-based structural fuzzing.
 - [📁 27-full-stack-systems-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/27-full-stack-systems-capstone) — Integrated full-stack audit across hardware, firmware, hypervisors, and parsers.
-
 <br>
+
 ---
 
 ### 🔬 Phase 04: Deep Vulnerability Research & Advanced Analysis (M28–M35)
@@ -90,8 +90,8 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 33-modern-mitigations-cet-pac/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/33-modern-mitigations-cet-pac) — Clang CFI, Intel CET (Shadow Stacks/IBT), ARM PAC/BTI, and Data-Only Attacks (DOP).
 - [📁 34-side-channels-cache-timing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/34-side-channels-cache-timing) — Out-of-order execution, Flush+Reload covert channels, Spectre V1, and Meltdown mechanics.
 - [📁 35-independent-vr-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/35-independent-vr-capstone) — End-to-end vulnerability research workflow on complex open-source software.
-
 <br>
+
 ---
 
 ### 👑 Phase 05: Advanced Specialization & Independent Research (M36–M42)
@@ -103,7 +103,6 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 40-independent-research-project-1/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/40-independent-research-project-1) — Autonomous discovery cycle against primary specialization target.
 - [📁 41-independent-research-project-2/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/41-independent-research-project-2) — Secondary domain audit and upstream open-source patch/tool contribution.
 - [📁 42-elite-research-capstone-defense/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/42-elite-research-capstone-defense) — The 50+ Page Master Research Portfolio & 0-Day Discovery Defense.
-
 <br><br>
 
 ## 📝 The 10-Point Technical Documentation Standard
@@ -120,22 +119,21 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 **Remediation & Patch:** Concrete, production-grade code-level patch.<br>
 **Regression Testing:** Automated unit test suite verifying fix stability.<br>
 **Variant Hunting Rules:** Abstracted CodeQL/Semgrep queries to detect identical patterns.<br>
-
 <br>
+
 ---
 
 ## 🌐 Official Channels & Research Verification
-
 <br>
 
-🐙 GitHub Organization: github.com/iwcyberops
-📺 YouTube Channel: youtube.com/@iwcyberops
-📱 TikTok Research: tiktok.com/@iwcyberops
-📸 Instagram: instagram.com/@iwcyberops
-✖️ X / Twitter: x.com/iwcyberops
-📧 Direct Contact: iwcyberops@gmail.com
-
+**🐙 GitHub Organization:** github.com/iwcyberops <br>
+**📺 YouTube Channel:** youtube.com/@iwcyberops <br>
+**📱 TikTok Research:** tiktok.com/@iwcyberops <br>
+**📸 Instagram:** instagram.com/@iwcyberops <br>
+**✖️ X / Twitter:** x.com/iwcyberops <br>
+**📧 Direct Contact:** iwcyberops@gmail.com <br>
 <br>
+
 ---
 
 ### ⚖️ Legal & Ethical Notice
