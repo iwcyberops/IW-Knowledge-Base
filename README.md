@@ -32,6 +32,7 @@ Ye repository **IW Cyber Ops** ke 3-pillar ecosystem ka central intelligence eng
 Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska maqsad kisi bhi complex target system ko Byte-Level, Instruction-Level, aur Silicon-Level par systematically deconstruct karna aur uska complete mathematical aur architectural record mehfooz karna hai.
 "Tools change; operating system internals, CPU microarchitecture, and memory models are permanent. Never use a tool without understanding the system calls and network packets it generates."
 <br>
+
 ## 📂 The 42-Month Knowledge Base Directory
 
 **Tamam technical notes 5 Core Phases aur 42 Months ke structured modules me organize hain:**
@@ -45,6 +46,9 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 07-server-side-web-security/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/07-server-side-web-security) — Blind/OAST SQLi, BOLA/IDOR matrix, SSRF cloud metadata, XXE, and SSTI sandbox escapes.
 - [📁 08-systems-c-foundations-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/08-systems-c-foundations-capstone) — POSIX pthreads concurrency, 64-bit ELF parsing, and Phase I System Capstone.
 <br>
+
+---
+
 ### ☠️ Phase 02: Offensive Security, Windows, RE & Exploitation (M09–M18)
 
 - [📁 09-windows-internals-ad/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/09-windows-internals-ad) — NT Executive architecture, PEB/TEB, Access Tokens, PE file parsing, and Kerberos.
@@ -57,7 +61,10 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 16-mobile-security-android-frida/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/16-mobile-security-android-frida) — ART internals, Smali bytecode patching, Frida dynamic hooking, and native JNI .so reversing.
 - [📁 17-cloud-container-kubernetes/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/17-cloud-container-kubernetes) — Cloud IAM topologies, Linux namespaces/cgroups, Docker breakouts, and Kubernetes RBAC.
 - [📁 18-offensive-operations-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/18-offensive-operations-capstone) — Full-chain adversary emulation, direct NT syscalls, and 30+ page enterprise capstone.
+
 <br>
+---
+
 ### ⚡ Phase 03: Hardware, Firmware, Advanced Fuzzing & Systems (M19–M27)
 
 - [📁 19-hardware-buses-debug-interfaces/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/19-hardware-buses-debug-interfaces) — Electrical logic levels, UART interception, SPI flash chip dumping, and I2C/JTAG analysis.
@@ -69,7 +76,10 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 25-browser-security-v8-engine/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/25-browser-security-v8-engine) — Multi-process sandbox, V8 Ignition/TurboFan pipelines, Maps/Hidden Classes, and pointer tagging.
 - [📁 26-protocol-re-format-fuzzing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/26-protocol-re-format-fuzzing) — Binary protocol inference, Kaitai Struct models, and grammar-based structural fuzzing.
 - [📁 27-full-stack-systems-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/27-full-stack-systems-capstone) — Integrated full-stack audit across hardware, firmware, hypervisors, and parsers.
+
 <br>
+---
+
 ### 🔬 Phase 04: Deep Vulnerability Research & Advanced Analysis (M28–M35)
 
 - [📁 28-in-memory-snapshot-fuzzing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/28-in-memory-snapshot-fuzzing) — Persistent mode __AFL_LOOP, Nyx/WTF snapshot restoration, and Intel PT execution tracing.
@@ -80,7 +90,10 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 33-modern-mitigations-cet-pac/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/33-modern-mitigations-cet-pac) — Clang CFI, Intel CET (Shadow Stacks/IBT), ARM PAC/BTI, and Data-Only Attacks (DOP).
 - [📁 34-side-channels-cache-timing/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/34-side-channels-cache-timing) — Out-of-order execution, Flush+Reload covert channels, Spectre V1, and Meltdown mechanics.
 - [📁 35-independent-vr-capstone/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/35-independent-vr-capstone) — End-to-end vulnerability research workflow on complex open-source software.
+
 <br>
+---
+
 ### 👑 Phase 05: Advanced Specialization & Independent Research (M36–M42)
 
 - [📁 36-specialization-source-tree-dive/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/36-specialization-source-tree-dive) — Multi-million line target source tree compilation, build mapping, and trust boundaries.
@@ -90,32 +103,40 @@ Yeh vault generic tutorials ya superficial notes ka collection nahi hai. Iska ma
 - [📁 40-independent-research-project-1/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/40-independent-research-project-1) — Autonomous discovery cycle against primary specialization target.
 - [📁 41-independent-research-project-2/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/41-independent-research-project-2) — Secondary domain audit and upstream open-source patch/tool contribution.
 - [📁 42-elite-research-capstone-defense/](https://github.com/iwcyberops/IW-Knowledge-Base/tree/main/42-elite-research-capstone-defense) — The 50+ Page Master Research Portfolio & 0-Day Discovery Defense.
+
 <br><br>
+
 ## 📝 The 10-Point Technical Documentation Standard
 
-**Is Knowledge Base ke tamam notes aur vulnerability writeups is strict engineering standard par likhe jaate hain:**
+**Is Knowledge Base ke tamam notes aur vulnerability writeups is strict engineering standard par likhe jaate hain:**<br>
 
-**Executive Scope:** Target software/hardware, exact version, commit hashes.
-**Threat Model:** Trust boundaries, privilege levels, and attacker capabilities.
-**Attack Surface Mapping:** IPC listeners, syscalls, file parsers, and network boundaries.
-**Root Cause Analysis:** Line-by-line code evaluation, assembly traces, and flawed assumptions.
-**Vulnerability Classification:** Accurate CWE identifier and memory dynamics.
-**Controlled Proof-of-Concept:** Deterministic, safe reproduction script.
-**Exploitability & Mitigations Assessment:** Primitive requirements under modern defenses (ASLR, CET, PAC).
-**Remediation & Patch:** Concrete, production-grade code-level patch.
-**Regression Testing:** Automated unit test suite verifying fix stability.
-**Variant Hunting Rules:** Abstracted CodeQL/Semgrep queries to detect identical patterns.
-<
+**Executive Scope:** Target software/hardware, exact version, commit hashes.<br>
+**Threat Model:** Trust boundaries, privilege levels, and attacker capabilities.<br>
+**Attack Surface Mapping:** IPC listeners, syscalls, file parsers, and network boundaries.<br>
+**Root Cause Analysis:** Line-by-line code evaluation, assembly traces, and flawed assumptions.<br>
+**Vulnerability Classification:** Accurate CWE identifier and memory dynamics.<br>
+**Controlled Proof-of-Concept:** Deterministic, safe reproduction script.<br>
+**Exploitability & Mitigations Assessment:** Primitive requirements under modern defenses (ASLR, CET, PAC).<br>
+**Remediation & Patch:** Concrete, production-grade code-level patch.<br>
+**Regression Testing:** Automated unit test suite verifying fix stability.<br>
+**Variant Hunting Rules:** Abstracted CodeQL/Semgrep queries to detect identical patterns.<br>
+
 <br>
+---
+
 ## 🌐 Official Channels & Research Verification
+
 <br>
+
 🐙 GitHub Organization: github.com/iwcyberops
 📺 YouTube Channel: youtube.com/@iwcyberops
 📱 TikTok Research: tiktok.com/@iwcyberops
 📸 Instagram: instagram.com/@iwcyberops
 ✖️ X / Twitter: x.com/iwcyberops
 📧 Direct Contact: iwcyberops@gmail.com
+
 <br>
+---
 
 ### ⚖️ Legal & Ethical Notice
 All research notes, vulnerability writeups, and reverse engineering documentation within this repository are compiled exclusively for educational research, system hardening, and authorized disclosure. Testing against unauthorized systems is strictly prohibited.
