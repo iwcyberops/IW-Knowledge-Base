@@ -1,71 +1,65 @@
+<!-- 
+SEO METADATA & KEYWORDS (Invisible to readers, visible to Google Crawlers)
+Keywords: IW Cyber Ops, Muhammad Imran, Cloud Security, AWS IAM Exploitation, Kubernetes Security, Container Breakout, Linux Namespaces, Cgroups, Docker Architecture, IMDSv2 SSRF, RBAC Auditing, AMD SEV Intel SGX, Cybersecurity Knowledge Base.
+-->
+
 # ☁️ Month 17: Cloud Infrastructure, Identity Management & Container Security
 
-> **Research Track:** Phase 02 — Offensive Security, Windows, RE & Exploitation  
-> **Author & Lead Researcher:** Muhammad Imran (Founder, **IW Cyber Ops**)  
-> **Knowledge Base Domain:** `IW-Knowledge-Base/m17-cloud-container-kubernetes`
+> **Knowledge Base Directory:** Phase 02 / Month 17  
+> **System Operator & Author:** Muhammad Imran (Founder, **IW Cyber Ops**)  
+> **Objective:** Understand cloud identity topologies, evaluate IAM boundaries across AWS/Azure/GCP, and master container runtime security.
 
 ---
 
-## 🧭 Why Cloud IAM Topologies & Container Runtime Breakouts Matter
+## 🏛️ The Imperative of Cloud & Container Security
 
-Modern production systems ab physical bare-metal par nahi, balki **Cloud Providers (AWS / Azure / GCP)** aur **Container Orchestration Platforms (Docker / Kubernetes)** ke upar microservices ban kar chalte hain.
+Enterprise infrastructure has fundamentally shifted from monolithic on-premise servers to elastic cloud topologies and containerized microservices.
 
-Traditional perimeter security (firewalls) cloud me fail ho chuki hai; yahan **Identity & Access Management (IAM)** aur **Kernel Namespace Isolation** hi asal boundary hain. Ek elite offensive researcher ke liye ye samajhna zaroori hai ke:
-1. **Cloud Identity & Role Mechanics:** IAM Policies, STS (Security Token Service) temporary credentials, role assumption, cross-account trusts, aur metadata services (**AWS IMDSv1 vs. IMDSv2** token headers).
-2. **Cloud Privilege Escalation Paths:** S3/Blob storage policies abuse, IAM permission combination vectors (`iam:PassRole`, `lambda:CreateFunction`), aur serverless environment flaws.
-3. **Container Internals (Linux Under the Hood):** Linux Namespaces (`PID`, `Mount`, `Net`, `IPC`, `UTS`, `User`), Control Groups (`cgroups v1/v2`), Docker daemon architecture, aur rootless container limits.
-4. **Container Breakouts & Kubernetes Auditing:** Misconfigured Docker capabilities (`CAP_SYS_ADMIN`), exposed `docker.sock` mounts se host root access lena, aur Kubernetes Control Plane (`etcd`, API Server, Kubelet) me misconfigured **RBAC policies** ko weaponize karna.
+In modern target environments, identity is the true perimeter. An adversary who gains a foothold does not simply scan IP subnets; they query Instance Metadata Services (IMDS), steal Security Token Service (STS) credentials, and traverse complex cross-account Identity and Access Management (IAM) trust policies. Understanding the mathematical boundaries of cloud permissions is mandatory for offensive dominance.
 
-Ye month humein modern cloud-native architectures ko audit aur dominate karne ka master banata hai.
+Simultaneously, containers are not lightweight virtual machines—they are isolated Linux processes governed entirely by kernel primitives: **Namespaces** and **Control Groups (cgroups)**. When these boundaries are misconfigured, or when dangerous Linux capabilities (`CAP_SYS_ADMIN`) and Docker socket mounts are exposed, an elite researcher can break out of container sandboxes directly to host root.
+
+This directory serves as the **IW Cyber Ops Knowledge Base** for Month 17. It documents the systematic exploitation of cloud identity mechanisms, container breakouts, Kubernetes RBAC misconfigurations, and hardware-enforced cloud isolation.
 
 ---
 
-## 📚 Month 17 Knowledge Base & Topic Notes Directory
+## 🧠 Core Domains Documented in this Directory
 
-Is folder me Month 17 ke dauran banaye gaye tamam technical notes topics ke mutabiq categorized hain:
+The notes contained within this module cover the following theoretical and practical pillars:
 
-| Note File | Core Focus & Concepts Covered | Status |
-| :--- | :--- | :---: |
-| 📄 **[`01-cloud-iam-policies-role-assumption.md`](./01-cloud-iam-policies-role-assumption.md)** | AWS/Azure IAM policies, STS temporary tokens, role assumption chains, cross-account trusts, and IMDSv1 vs IMDSv2. | 🟢 Completed |
-| 📄 **[`02-cloud-attack-paths-serverless-s3.md`](./02-cloud-attack-paths-serverless-s3.md)** | S3/Blob storage misconfigurations, IAM privilege escalation vectors, Lambda execution contexts, and secret exfiltration. | 🟢 Completed |
-| 📄 **[`03-container-internals-namespaces-cgroups.md`](./03-container-internals-namespaces-cgroups.md)** | Linux kernel namespaces (`clone`/`unshare`), `cgroups v1/v2` resource limits, Docker daemon model, and rootless setups. | 🟢 Completed |
-| 📄 **[`04-container-breakout-privilege-escapes.md`](./04-container-breakout-privilege-escapes.md)** | Container breakout vectors: `CAP_SYS_ADMIN` abuse, mounted `/var/run/docker.sock` escape to host root, and `release_agent` tricks. | 🟢 Completed |
-| 📄 **[`05-kubernetes-control-plane-rbac-audit.md`](./05-kubernetes-control-plane-rbac-audit.md)** | Kubernetes architecture (`API Server`, `etcd`, `Kubelet`), Service Account tokens, RBAC privilege escalation, and network policies. | 🟢 Completed |
-
----
-
-## ⚙️ The 3 Daily Continuous Side Tracks (Month 17 Focus)
-
-Hamare daily 12-hour engine ke 3 parallel tracks ke dedicated notes:
-
-### 1. 💻 Systems C/C++ Track (1 Hour Daily)
-* **Goal:** Direct manipulation of Linux kernel namespaces.
-* **Topics:** Writing C programs using low-level kernel system calls `clone()` with flags (`CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWNET`) and `unshare()` to build a minimal container runtime from scratch.
-
-### 2. 🧩 Assembly & Reverse Engineering Track (1 Hour Daily)
-* **Goal:** Reverse engineering Go-compiled binaries.
-* **Topics:** Analyzing compiled Go binaries (standard in Docker/K8s/Cloud tools) in Ghidra; understanding Go runtime goroutines, interface tables (`itab`), and stripped Go symbol recovery.
-
-### 3. 🔌 Hardware & Architecture Track (1 Hour Daily)
-* **Goal:** Hardware-enforced cloud memory isolation.
-* **Topics:** Multi-tenant cloud CPU isolation, AMD SEV (Secure Encrypted Virtualization), and Intel SGX (Software Guard Extensions) memory encryption enclaves.
+1. **Cloud Identity & IAM Topology:** Dissecting AWS/Azure/GCP IAM policies, role assumption lifecycles, STS session tokens, cross-account trusts, and navigating IMDSv1 vs. IMDSv2 token session requirements.
+2. **Cloud Attack Paths:** Auditing cloud storage misconfigurations (S3 bucket ACLs, Azure Blobs), executing IAM privilege escalation vectors, finding exposed secrets in serverless architectures, and exploiting CloudGoat scenarios.
+3. **Container Internals & Isolation Primitives:** Deep-dive into Linux kernel namespaces (PID, Mount, Net, IPC, UTS, User), Control Groups (cgroups v1/v2), Docker daemon architecture, and rootless container engines.
+4. **Container Breakout Mechanics:** Weaponizing container escape primitives: abusing exposed `docker.sock`, exploiting overly permissive Linux capabilities (`CAP_SYS_ADMIN`, `CAP_NET_ADMIN`), and mounting host filesystems.
+5. **Kubernetes Cluster Security:** Mapping control plane components (API Server, `etcd`, Kubelet), analyzing Role-Based Access Control (RBAC) misconfigurations, abusing privileged Service Accounts, and auditing pod security standards.
+6. **Low-Level Isolation & Hardware Enclaves:** Interacting directly with Linux namespaces via C syscalls (`clone()`, `unshare()`), reverse engineering Go-compiled cloud agents, and studying hardware-enforced memory encryption (AMD SEV, Intel SGX).
 
 ---
 
-## 🛠️ Lab Environments & Hands-On Milestones
+## 📂 Index of Technical Notes
 
-* 🎯 **CloudGoat IAM Escalation Suite:** 5 complex multi-tier scenarios deployed and solved on CloudGoat, documenting chained IAM privilege escalation to full AWS account takeover.
-* 🎯 **Container Breakout Demonstration Lab:** Controlled test environment proving container breakout to host machine root via mounted Docker sockets and abused Linux capabilities (`CAP_SYS_ADMIN`).
-* 🎯 **Kubernetes Security Audit Report:** Complete multi-tenant Kubernetes cluster audit using `Peirates` and `Trivy`, identifying misconfigured RBAC roles, cluster role bindings, and privilege paths.
+*Below is the living index of all Markdown notes generated during this month's research. Click on any topic to access the detailed documentation.*
+
+| Status | Technical Topic | File Reference |
+| :---: | :--- | :--- |
+| 📝 | Cloud Identity: AWS IAM Policies, STS & IMDSv2 | `[01-cloud-iam-sts-imdsv2.md](./01-cloud-iam-sts-imdsv2.md)` |
+| 📝 | Cloud Attack Paths & IAM Privilege Escalation | `[02-cloud-attack-paths-iam-privesc.md](./02-cloud-attack-paths-iam-privesc.md)` |
+| 📝 | Container Internals: Linux Namespaces & Cgroups | `[03-container-namespaces-cgroups.md](./03-container-namespaces-cgroups.md)` |
+| 📝 | Container Breakout Primitives & Capability Abuse | `[04-container-breakout-capabilities.md](./04-container-breakout-capabilities.md)` |
+| 📝 | Kubernetes Security: Control Plane, RBAC & `etcd` | `[05-kubernetes-rbac-cluster-security.md](./05-kubernetes-rbac-cluster-security.md)` |
+| 📝 | Hardware Memory Encryption: AMD SEV & Intel SGX | `[06-cloud-hardware-isolation-sev-sgx.md](./06-cloud-hardware-isolation-sev-sgx.md)` |
+
+*(Note: As the month progresses, new `.md` files will be added to this folder and linked above.)*
 
 ---
 
-## 📖 Primary Learning References
-* 🌐 *Hacking the Cloud* — Nick Frichette
-* 📜 *Cloud Security Alliance (CSA) Security Guidance*
-* 💻 *Kubernetes Official Security Documentation & Hardening Guides*
-* 💻 *Rhino Security Labs CloudGoat Repository*
+## 🛡️ About the Author
+
+**Muhammad Imran** is an independent systems researcher and the Founder of **IW Cyber Ops**. This knowledge base is an active repository complementing a rigorous 42-month journey engineered for absolute depth, intellectual rigor, and high-impact vulnerability research.
+
+To view the complete overarching roadmap, visit the official [IW-Mission-Control](https://github.com/iwcyberops/IW-Mission-Control) repository.
+
+<br>
 
 ---
-
-© **Muhammad Imran (Founder, IW Cyber Ops)** | Documented for Absolute Depth & Intellectual Rigor.
+*Generated & Curated by **IW Cyber Ops** | High-Assurance Cyber Operations & Research*
