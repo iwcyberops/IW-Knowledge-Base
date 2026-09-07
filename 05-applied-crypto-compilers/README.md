@@ -1,70 +1,62 @@
+<!-- 
+SEO METADATA & KEYWORDS (Invisible to readers, visible to Google Crawlers)
+Keywords: IW Cyber Ops, Muhammad Imran, Applied Cryptography, Web Security Architecture, Compilation Pipelines, ELF Internals, Linker Mechanics, GOT PLT, AES GCM, TLS Handshake, SOP CORS, Cybersecurity Knowledge Base.
+-->
+
 # 🔐 Month 05: Applied Cryptography, Web Foundations & Compilation Pipelines
 
-> **Research Track:** Phase 01 — Foundations & Systems Architecture  
-> **Author & Lead Researcher:** Muhammad Imran (Founder, **IW Cyber Ops**)  
-> **Knowledge Base Domain:** `IW-Knowledge-Base/m05-applied-crypto-compilers`
+> **Knowledge Base Directory:** Phase 01 / Month 05  
+> **System Operator & Author:** Muhammad Imran (Founder, **IW Cyber Ops**)  
+> **Objective:** Understand secure communication channels, web client-server protocols, and the complete source-to-binary compilation process.
 
 ---
 
-## 🧭 Why Cryptography, Web Internals & Compilers Matter
+## 🏛️ The Imperative of Cryptography & Compilation Pipelines
 
-Ek elite researcher ke paas sirf ek domain ka ilm kafi nahi hota. Asal taqat tab aati hai jab aap **Cryptographic math, Web protocols, aur Compiler binary emission** ke aapas ke talluq ko samajhte hain.
+Security is an illusion without cryptographic enforcement, and reverse engineering is guesswork without understanding how code is compiled. 
 
-Is month me hum un teenon buniyaadi pillars ko cover karenge jo modern security systems ko secure banate hain:
-1. **Applied Cryptography:** Symmetric ciphers (AES-CBC, AES-GCM), IV reuse attacks, Asymmetric cryptography (RSA modular arithmetic, ECC), Hashing (SHA-256, HMAC), aur TLS 1.3 handshake mechanics.
-2. **Web Architecture & Client Boundaries:** HTTP/1.1 request/response lifecycles, security headers, cookie flags (`Secure`, `HttpOnly`, `SameSite`), SOP (Same-Origin Policy), CORS, aur DOM rendering.
-3. **Compiler & Linker Pipeline:** Source code ka AST (Abstract Syntax Tree) banna, assembly generation, object file relocations (`.o`), static vs dynamic linking (`ld.so`), aur sab se critical: **PLT (Procedure Linkage Table) & GOT (Global Offset Table)** resolving mechanics.
+An elite vulnerability researcher must possess a holistic view of the technology stack. You must understand how raw source code is parsed, optimized, and linked into a binary executable (`ELF`) before it ever touches memory. Simultaneously, you must comprehend how that executable communicates securely over untrusted networks, managing encryption keys, TLS handshakes, and web security boundaries (SOP/CORS).
 
-Ye month source code se binary banne ke safar aur secure web communications ko crystal clear karta hai.
+This directory serves as the **IW Cyber Ops Knowledge Base** for Month 05. It bridges the gap between discrete components, mapping the lifecycle of data from plain text to cryptographic ciphertexts, and tracing source code from high-level C all the way down to dynamic linker resolutions (`PLT/GOT`).
 
 ---
 
-## 📚 Month 05 Knowledge Base & Topic Notes Directory
+## 🧠 Core Domains Documented in this Directory
 
-Is folder me Month 05 ke dauran banaye gaye tamam technical notes topics ke mutabiq categorized hain:
+The notes contained within this module cover the following theoretical and practical pillars:
 
-| Note File | Core Focus & Concepts Covered | Status |
-| :--- | :--- | :---: |
-| 📄 **[`01-applied-cryptography-ciphers.md`](./01-applied-cryptography-ciphers.md)** | AES-CBC/GCM, IV reuse vulnerabilities, RSA modular math, ECC discrete logarithms, HMAC, and collision resistance. | 🟢 Completed |
-| 📄 **[`02-pki-x509-tls-handshake.md`](./02-pki-x509-tls-handshake.md)** | Public Key Infrastructure (PKI), Root & Intermediate CAs, X.509 certificate validation chains, and TLS 1.3 cryptographic transactions. | 🟢 Completed |
-| 📄 **[`03-web-protocols-sop-cors.md`](./03-web-protocols-sop-cors.md)** | HTTP/1.1 protocol internals, cookie security flags, DOM tree structures, client-side JS models, and SOP/CORS boundaries. | 🟢 Completed |
-| 📄 **[`04-compiler-pipeline-ast-linking.md`](./04-compiler-pipeline-ast-linking.md)** | Preprocessing (`cpp`), Lexing/Parsing, AST emission, Object files (`.o`), Relocations, and Static vs Dynamic Linking (`ld.so`). | 🟢 Completed |
-| 📄 **[`05-elf-plt-got-resolution.md`](./05-elf-plt-got-resolution.md)** | Procedure Linkage Table (PLT), Global Offset Table (GOT), runtime symbol binding, and position-independent execution (`-fPIC`). | 🟢 Completed |
+1. **Applied Cryptography:** Mechanics of symmetric ciphers (AES-CBC, AES-GCM, IV reuse vulnerabilities), asymmetric cryptography (RSA modular arithmetic, ECC discrete logarithms), Hashing integrity (SHA-256, HMAC), and Public Key Infrastructure (PKI / X.509).
+2. **Secure Communication:** Dissecting the TLS 1.3 handshake, certificate authorities (CAs), and establishing secure enterprise encryption architectures.
+3. **Web Application Architecture:** The lifecycle of HTTP requests/responses, critical security headers, cookie flags (`Secure`, `HttpOnly`, `SameSite`), Cross-Origin Resource Sharing (CORS), the Same-Origin Policy (SOP), and client-side DOM execution models.
+4. **Compiler Internals:** Tracing the exact stages of GCC/Clang: Preprocessing (`cpp`), lexical analysis, Abstract Syntax Tree (AST) generation, and the impact of compiler optimization flags (`-O0`, `-O2`, `-Os`) on emitted assembly.
+5. **Linker Mechanics & ELF Structures:** Static vs. Dynamic linking (`ld.so`), dissecting Executable and Linkable Format (ELF) sections, relocations, and the dynamic resolution of shared libraries via the Global Offset Table (GOT) and Procedure Linkage Table (PLT).
 
 ---
 
-## ⚙️ The 3 Daily Continuous Side Tracks (Month 05 Focus)
+## 📂 Index of Technical Notes
 
-Hamare daily 12-hour engine ke 3 parallel tracks ke dedicated notes:
+*Below is the living index of all Markdown notes generated during this month's research. Click on any topic to access the detailed documentation.*
 
-### 1. 💻 Systems C Track (1 Hour Daily)
-* **Goal:** Multi-file compilation and build automation.
-* **Topics:** Writing modular C software using separate header files (`.h`), managing compilation units, and writing production Makefiles.
+| Status | Technical Topic | File Reference |
+| :---: | :--- | :--- |
+| 📝 | Applied Cryptography: AES, RSA, ECC & Hashing | `[01-applied-crypto-aes-rsa.md](./01-applied-crypto-aes-rsa.md)` |
+| 📝 | Enterprise PKI, X.509 & TLS 1.3 Mechanics | `[02-pki-x509-tls13.md](./02-pki-x509-tls13.md)` |
+| 📝 | Web Architecture: HTTP, SOP, CORS & Cookies | `[03-web-arch-sop-cors.md](./03-web-arch-sop-cors.md)` |
+| 📝 | Compiler Internals: Preprocessing to AST | `[04-compiler-internals-ast.md](./04-compiler-internals-ast.md)` |
+| 📝 | Linker Mechanics: ELF, Relocations & GOT/PLT | `[05-linker-elf-got-plt.md](./05-linker-elf-got-plt.md)` |
+| 📝 | CPU Instruction Cycles & Optimization Disassembly | `[06-cpu-cycles-optimizations.md](./06-cpu-cycles-optimizations.md)` |
 
-### 2. 🧩 Assembly & Reverse Engineering Track (1 Hour Daily)
-* **Goal:** Compiler optimization transformations.
-* **Topics:** Reconstructing high-level logic from compiler transformations: loop unrolling, register allocation algorithms, and function inlining in assembly.
-
-### 3. 🔌 Hardware & Architecture Track (1 Hour Daily)
-* **Goal:** CPU instruction execution pipeline.
-* **Topics:** Classic 5-stage CPU pipeline: Fetch, Decode, Execute, Memory Access, and Writeback (FDEMW), along with CPU microcode decoding.
-
----
-
-## 🛠️ Lab Environments & Hands-On Milestones
-
-* 🎯 **Dynamic C HTTP/1.0 Socket Web Server:** Multi-threaded web server in pure C parsing raw HTTP requests, headers, and serving static filesystem objects securely.
-* 🎯 **Custom Enterprise PKI Lab:** Private Root CA and Intermediate CA configured using OpenSSL, issuing signed certificates and enforcing TLS validation.
-* 🎯 **Optimization Disassembly Analysis Report:** Comprehensive disassembly comparison of identical C routines compiled under `-O0`, `-O2`, and `-Os`.
+*(Note: As the month progresses, new `.md` files will be added to this folder and linked above.)*
 
 ---
 
-## 📖 Primary Learning References
-* 📘 *Serious Cryptography: A Practical Introduction to Modern Encryption* — Jean-Philippe Aumasson
-* 💻 *Cryptopals Crypto Challenges* (Set 1)
-* 💻 *PortSwigger Web Security Academy*
-* 💻 *GCC & Clang Compiler Internals Documentation*
+## 🛡️ About the Author
+
+**Muhammad Imran** is an independent systems researcher and the Founder of **IW Cyber Ops**. This knowledge base is an active repository complementing a rigorous 42-month journey engineered for absolute depth, intellectual rigor, and high-impact vulnerability research.
+
+To view the complete overarching roadmap, visit the official [IW-Mission-Control](https://github.com/iwcyberops/IW-Mission-Control) repository.
+
+<br>
 
 ---
-
-© **Muhammad Imran (Founder, IW Cyber Ops)** | Documented for Absolute Depth & Intellectual Rigor.
+*Generated & Curated by **IW Cyber Ops** | High-Assurance Cyber Operations & Research*
