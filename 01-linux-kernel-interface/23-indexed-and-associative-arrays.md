@@ -49,7 +49,8 @@ TARGETS+=("10.10.14.15" "10.10.14.20")
 ---
 
 ### 2. Reading, Slicing & Array Metrics
-$$\text{Syntax Pattern: } \mathbf{\$\{\text{ARRAY}[\text{INDEX}]\} \quad | \quad \$\{\#\text{ARRAY}[@]\} \quad | \quad \$\{\text{ARRAY}[@]:\text{OFFSET}:\text{LEN}\}}$$
+<!--$$\text{Syntax Pattern: } \mathbf{\$\{\text{ARRAY}[\text{INDEX}]\} \quad | \quad \$\{\#\text{ARRAY}[@]\} \quad | \quad \$\{\text{ARRAY}[@]:\text{OFFSET}:\text{LEN}\}}$$
+-->
 
 ```bash
 # 1. Accessing Elements
