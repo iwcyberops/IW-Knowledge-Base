@@ -61,4 +61,4 @@ To view the complete overarching roadmap, visit the official [IW-Mission-Control
 <br>
 
 ---
-*Generated & Curated by **IW Cyber Ops** | High-Assurance Cyber Operations & Research*
+*Generated & Curated by **Muhammad Imran Founder of IW Cyber Ops** | High-Assurance Cyber Operations & Research*
