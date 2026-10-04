@@ -248,3 +248,248 @@ The global Internet does not have a central controller; it is an interconnected 
 
 ---
 
+# 🌐 Chapter 01: Network Foundations & The Packet Journey (Part 1.2)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: OSI vs TCP/IP Models, Kernel-Space Network Stacks, Sockets & sk_buff*
+
+---
+
+## 1. Architectural Reality: Theoretical OSI vs Implemented TCP/IP
+
+The **OSI (Open Systems Interconnection) 7-Layer Model** is an abstract reference framework developed by ISO. In physical silicon and modern operating system kernels, the **TCP/IP 4-Layer Model (DoD Model)** is the actual implemented architecture that governs the global Internet.
+
+```
+       OSI 7-LAYER MODEL                                 TCP/IP 4-LAYER MODEL
+    ┌───────────────────────┐                         ┌───────────────────────┐
+  7 │ Application           │ ──┐                     │                       │
+    ├───────────────────────┤   │                     │ Application           │
+  6 │ Presentation          │   ├───────────────────> │ (User Space / Ring 3) │
+    ├───────────────────────┤   │                     │ (HTTP, DNS, SSH, C2)  │
+  5 │ Session               │ ──┘                     │                       │
+════╪═══════════════════════╪═════════════════════════╪═══════════════════════╪════ (System Call / Socket Boundary)
+  4 │ Transport             │ ──────────────────────> │ Transport (TCP / UDP) │ ── (Kernel Space / Ring 0)
+    ├───────────────────────┤                         ├───────────────────────┤
+  3 │ Network               │ ──────────────────────> │ Network (IPv4 / IPv6) │ ── (Kernel Space / Ring 0)
+════╪═══════════════════════╪═════════════════════════╪═══════════════════════╪════ (Hardware / Driver Boundary)
+  2 │ Data Link             │ ──┐                     │ Network Access / Link │
+    ├───────────────────────┤   ├───────────────────> │ (Ethernet, Wi-Fi)     │ ── (NIC Firmware & PHY)
+  1 │ Physical              │ ──┘                     │ (MACs, Frames, Bits)  │
+    └───────────────────────┘                         └───────────────────────┘
+```
+
+---
+
+### The Kernel-Space vs User-Space Boundary
+
+One of the most critical concepts in systems engineering and offensive operations is understanding **where each layer physically executes in host memory**:
+
+1. **User Space (Ring 3):**
+   * Layers 5, 6, and 7 do **not** exist in the Linux kernel. They are implemented entirely within user-space libraries (`glibc`, `OpenSSL`, libcurl) and application source code.
+   * Encryption (TLS), data compression (gzip), serialization (JSON, Protobuf), and application logic (HTTP parsing) run with unprivileged CPU status.
+2. **The Socket Interconnect (POSIX API Boundary):**
+   * The transition between User Space and Kernel Space occurs at the **Berkeley Socket API** via system calls (`socket()`, `connect()`, `send()`, `recv()`).
+3. **Kernel Space (Ring 0):**
+   * Layers 3 and 4 are managed directly by the Linux kernel's networking subsystem.
+   * State machines, port allocations, sequence tracking, TCP sliding windows, routing tables, and IP fragment reassembly occur in protected kernel memory.
+4. **Hardware / Device Driver Layer:**
+   * Layers 1 and 2 execute in kernel device drivers, DMA controllers, and the physical NIC hardware registers.
+
+---
+
+## 2. Layer-by-Layer Functional & Attack Surface Dissection
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        DATA ENCAPSULATION & PDU TAXONOMY                               │
+├───────────────┬──────────────────────────┬─────────────────────┬───────────────────────┤
+│ Layer Level   │ Protocol Data Unit (PDU) │ Core Protocols      │ Primary Threat Vector │
+├───────────────┼──────────────────────────┼─────────────────────┼───────────────────────┤
+│ **Layer 7**   │ Data / Payload           │ HTTP, DNS, SSH, SMB │ Logic bugs, Injections│
+│ **Layer 6**   │ Encoded / Encrypted Data │ TLS, ASN.1, MIME    │ Cipher Downgrades     │
+│ **Layer 5**   │ Sockets / Sessions       │ RPC, SOCKS, NetBIOS │ Session Hijacking     │
+│ **Layer 4**   │ **Segment** (TCP) /      │ TCP, UDP, SCTP      │ SYN Floods, RST Kills,│
+│               │ **Datagram** (UDP)       │                     │ Port Exhaustion       │
+│ **Layer 3**   │ **Packet**               │ IPv4, IPv6, ICMP    │ IP Spoofing, Route MITM│
+│ **Layer 2**   │ **Frame**                │ Ethernet II, 802.1Q │ ARP Poisoning, CAM Ovf│
+│ **Layer 1**   │ **Bits**                 │ 1000BASE-T, Optics  │ Line Tapping, Jamming │
+└───────────────┴──────────────────────────┴─────────────────────┴───────────────────────┘
+```
+
+---
+
+### Layer-by-Layer Technical Responsibilities
+
+#### Layer 7: Application Layer
+* **Role:** Interface providing network services directly to user-facing software.
+* **Kernel Interaction:** Communicates via network daemons listening on registered Transport layer ports (e.g., Port 80 for Nginx, Port 53 for BIND9).
+* **Offensive Focus:** Application vulnerability vectors (Web App Injections, C2 command parsing, API exploitation).
+
+#### Layer 6: Presentation Layer
+* **Role:** Data format translation, character encoding conversions (ASCII, EBCDIC, UTF-8), and cryptographic encapsulation (TLS/SSL encryption & decryption).
+* **Systems Reality:** Handled entirely by userland cryptography libraries like OpenSSL or BoringSSL before handing raw bytes to the kernel socket.
+
+#### Layer 5: Session Layer
+* **Role:** Establishes, manages, and terminates persistent connections between local and remote applications.
+* **Systems Reality:** Implemented via OS socket descriptors, session cookies, and RPC mechanisms.
+
+#### Layer 4: Transport Layer
+* **Role:** End-to-end host-to-host communication, process-to-process multiplexing using **Port Numbers (0–65535)**, and data stream integrity.
+* **TCP (Transmission Control Protocol):** Connection-oriented, guarantees in-order packet delivery, handles flow control via sliding windows, and retransmits lost segments.
+* **UDP (User Datagram Protocol):** Connectionless, zero reliability guarantees, minimal 8-byte header overhead for real-time streaming and fast queries.
+
+#### Layer 3: Network Layer
+* **Role:** Logical host addressing (**IPv4/IPv6**) and global path determination (packet routing across autonomous networks).
+* **Key Operations:** IP packet formatting, Time-to-Live (TTL) decrements, MTU-based packet fragmentation, and network diagnostics via **ICMP**.
+
+#### Layer 2: Data Link Layer
+* **Role:** Node-to-node physical frame transfer across a shared local medium.
+* **Key Operations:** Physical hardware addressing (**MAC Addresses**), media access arbitration, Ethernet frame encapsulation, and cyclic error detection via **FCS (CRC-32)**.
+
+#### Layer 1: Physical Layer
+* **Role:** Raw bitstream transmission across a physical medium.
+* **Key Operations:** Voltage transitions, optical light pulses, or RF frequencies representing binary $1$s and $0$s.
+
+---
+
+## 3. The Berkeley Socket Engine & System Call Flow
+
+When an application in user space wishes to transmit a data stream, it interacts with the kernel's network stack through a standardized **Socket File Descriptor**.
+
+```
+    [ User Space: Application ]
+                 │
+                 │ 1. fd = socket(AF_INET, SOCK_STREAM, 0)
+                 │ 2. connect(fd, &server_addr, sizeof(addr))
+                 │ 3. write(fd, "GET / HTTP/1.1\r\n", 16)
+                 ▼
+  ══════════════════════════════════════════════════════════ (System Call Boundary)
+                 ▼
+    [ Linux Kernel Networking Subsystem ]
+                 │
+                 │ 4. Allocates socket struct & sk_buff
+                 │ 5. TCP Layer attaches TCP Header (Ports, SEQ, Flags)
+                 │ 6. IP Layer attaches IPv4 Header (Src/Dest IP, TTL, Checksum)
+                 │ 7. Routing subsystem resolves next-hop gateway via Route Table
+                 │ 8. ARP subsystem resolves Destination MAC address
+                 ▼
+    [ Device Driver & NIC Layer ]
+                 │
+                 │ 9. Driver attaches Ethernet II Header & CRC-32 Trailer
+                 │ 10. Loads frame into hardware TX Ring Buffer via DMA
+                 ▼
+         [ Physical Wire ]
+```
+
+---
+
+### The `sockaddr_in` Kernel Structure
+
+When a socket is initialized in C, the destination network address is mapped into kernel memory using the `sockaddr_in` struct:
+
+```c
+struct sockaddr_in {
+    sa_family_t    sin_family; /* Address Family: AF_INET (IPv4) or AF_INET6 */
+    in_port_t      sin_port;   /* Transport Port: 16-bit Port (Network Byte Order: Big-Endian) */
+    struct in_addr sin_addr;   /* Internet Address: 32-bit IPv4 address */
+};
+```
+
+---
+
+## 4. The Heart of the Linux Network Stack: `struct sk_buff`
+
+Inside the Linux kernel, every packet in flight is managed by a single master data structure called the **Socket Buffer (`sk_buff` or "skb")**.
+
+To achieve extreme performance, the kernel **never copies packet memory between layers**. Instead, it allocates a single memory buffer and moves internal pointers:
+
+```
+                            ┌──────────────────────────────────────┐
+                            │      struct sk_buff Memory Block     │
+                            └──────────────────┬───────────────────┘
+                                               │
+               ┌───────────────────────────────┴───────────────────────────────┐
+               ▼                                                               ▼
+        [ Headroom ]           [ Packet Protocol Data Headers ]        [ Tailroom ]
+       (Pre-allocated)         ┌────────────┬────────────┬─────────────┐ (Pre-allocated)
+                               │ Ethernet   │ IPv4       │ TCP         │
+                               │ Header     │ Header     │ Header      │
+                               └────────────┴────────────┴─────────────┘
+                               ▲                         ▲
+                               │                         │
+                            skb->data                 skb->tail
+```
+
+### The Pointer Manipulation Engine
+* `skb_push()`: Decrements the `skb->data` pointer to reserve space at the front of the buffer to **prepend a new protocol header** (e.g., adding an IP header to a TCP segment).
+* `skb_pull()`: Increments the `skb->data` pointer to **strip a header** as the packet ascends the network stack during decapsulation.
+* `skb_put()`: Extends the `skb->tail` pointer to append payload data into the tailroom.
+
+---
+
+## 5. Raw Sockets: Bypassing the Kernel Network Stack
+
+Standard applications use **Stream Sockets (`SOCK_STREAM` / TCP)** or **Datagram Sockets (`SOCK_DGRAM` / UDP)**, where the kernel automatically constructs Layers 2, 3, and 4.
+
+Offensive security tools (such as **Nmap, Scapy, and Hping3**) bypass kernel protocol formatting entirely using **Raw Sockets (`SOCK_RAW`)** or Link-Layer Sockets (`AF_PACKET`):
+
+```
+       STANDARD SOCKET (Userland Web Browser)            RAW SOCKET (Nmap / Scapy / Sniffer)
+  ┌─────────────────────────────────────────────┐   ┌─────────────────────────────────────────────┐
+  │ Application supplies raw payload only       │   │ Application constructs CUSTOM IP/TCP headers│
+  └──────────────────────┬──────────────────────┘   └──────────────────────┬──────────────────────┘
+                         ▼                                                 ▼
+  ┌─────────────────────────────────────────────┐   ┌─────────────────────────────────────────────┐
+  │ Kernel automatically attaches TCP/IP headers│   │ Kernel BYPASS: Kernel injects frame directly│
+  │ (Kernel controls SEQ, Ports, and Flags)     │   │ into NIC TX buffer without validation       │
+  └─────────────────────────────────────────────┘   └─────────────────────────────────────────────┘
+```
+
+```c
+// Creating an AF_PACKET Raw Socket in C (Requires Root / CAP_NET_RAW capability)
+int raw_sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+// Allows capturing or crafting raw Layer 2 Ethernet frames directly from user space!
+```
+
+---
+
+## 6. Comprehensive Attack Surface Mapping Across the Stack
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        LAYER-SPECIFIC ATTACK SURFACE TAXONOMY                          │
+├───────────────┬──────────────────────────────────┬─────────────────────────────────────┤
+│ Target Layer  │ Offensive Attack Class           │ Defensive Mitigation Architecture   │
+├───────────────┼──────────────────────────────────┼─────────────────────────────────────┤
+│ **Layer 7**   │ HTTP Smuggling, SQLi, C2 Beacons │ WAF, Input Sanitization, TLS Intercept│
+│ **Layer 6**   │ SSL Stripping, Heartbleed        │ Strict TLS 1.3, HSTS Preloading     │
+│ **Layer 5**   │ Session Hijacking, Token Forgery │ Ephemeral Tokens, Mutual TLS (mTLS) │
+│ **Layer 4**   │ SYN Flood, RST Injection, Blind  │ SYN Cookies (`tcp_syncookies=1`),   │
+│               │ Sequence Number Prediction Hijack│ Randomized ISNs, Stateful Firewalls │
+│ **Layer 3**   │ IP Spoofing, Tiny Fragmentation, │ Reverse Path Filtering (`rp_filter`),│
+│               │ ICMP Redirect Routing Poisoning  │ Path MTU Discovery, Strict Ingress  │
+│ **Layer 2**   │ ARP Cache Poisoning, CAM Overflow│ Dynamic ARP Inspection (DAI), Port  │
+│               │ 802.1Q Double-Tagging VLAN Hop   │ Security (Sticky MAC), 802.1X Auth  │
+│ **Layer 1**   │ Physical Tap, RF Jamming, TEMPEST│ Fiber Encryption, Shielded Cabling  │
+└───────────────┴──────────────────────────────────┴─────────────────────────────────────┘
+```
+
+---
+
+## 7. Socket & Kernel Diagnostics Reference Matrix
+
+| Inspection Target | Command / Path | Subsystem & Operational Purpose |
+| :--- | :--- | :--- |
+| **Inspect Active Sockets** | `ss -tulpn` | Reads `/proc/net/tcp` to list listening kernel sockets |
+| **Track Socket Memory Allocation** | `cat /proc/net/sockstat` | Displays active memory consumption of TCP/UDP buffers |
+| **Inspect Network Driver Drops** | `netstat -i` *(or `ip -s link`)* | Identifies physical RX/TX ring buffer packet drops |
+| **Monitor Raw Socket Ingress** | `lsof -i raw` | Detects rogue sniffers or active packet-crafting tools |
+| **Inspect Kernel Net Device State**| `cat /proc/net/dev` | Real-time byte and packet counters per interface |
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
