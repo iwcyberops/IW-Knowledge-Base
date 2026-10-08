@@ -433,3 +433,246 @@ sudo ip link set up dev eth0.20
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 🔌 Chapter 02: Layer 1 & Layer 2 — Data Link, Ethernet & ARP (Part 2.3)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: Spanning Tree Protocol (STP), BPDU Frame Dissection & Root Hijacking*
+
+---
+
+## 1. The Layer 2 Loop Catastrophe (Why STP Exists)
+
+To provide physical redundancy, enterprise networks deploy multiple physical links between switches. However, redundant Layer 2 links create **Bridging Loops** that can destroy an entire network within seconds.
+
+```
+                   ┌──────────────┐
+                   │   Switch A   │
+                   └──┬────────┬──┘
+                      │        │  (Redundant Physical Links)
+           Broadcast  │        │  Loops Infinitely!
+             Flood    │        │
+                   ┌──┴────────┴──┐
+                   │   Switch B   │
+                   └──────────────┘
+```
+
+---
+
+### Why Layer 2 Loops Are Fatal (The Missing TTL Reality)
+
+Unlike Layer 3 IPv4 packets which feature a **Time-To-Live (TTL)** field that decrements at each hop to kill routing loops, **Ethernet II frames have NO TTL or Hop Limit field**.
+
+Once an Ethernet frame enters a Layer 2 loop, it circulates infinitely until hardware power is cut or a cable is disconnected, triggering three fatal failure modes:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        LAYER 2 LOOP FAILURE TAXONOMY                                   │
+├─────────────────────────┬──────────────────────────────────────────────────────────────┤
+│ 1. Broadcast Storms     │ Broadcast frames (e.g., ARP Requests) are replicated by all  │
+│                         │ switches out every port, consuming 100% of link bandwidth.   │
+├─────────────────────────┼──────────────────────────────────────────────────────────────┤
+│ 2. CAM Table Thrashing  │ Switches ingest identical frames from alternating ports every│
+│    (MAC Instability)    │ millisecond, overwriting their CAM tables constantly and     │
+│                         │ locking switch ASIC CPUs at 100% utilization.                │
+├─────────────────────────┼──────────────────────────────────────────────────────────────┤
+│ 3. Multiple Frame Copies│ End-host endpoints receive thousands of duplicate copies of  │
+│                         │ the same unicast payload, crashing socket queues.            │
+└─────────────────────────┴──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Spanning Tree Protocol (IEEE 802.1D / 802.1w RSTP)
+
+Invented by **Radia Perlman**, the **Spanning Tree Protocol (STP)** uses graph theory to logically break loops by calculating an acyclic minimum spanning tree across physical networks. Redundant links are dynamically placed into a **Blocking (Standby)** state and brought online only if an active link fails.
+
+```
+       PHYSICAL TOPOLOGY (Redundant Loop)               LOGICAL STP TOPOLOGY (Loop-Free Tree)
+             ┌──────────┐                                     ┌──────────┐
+             │ Switch A │ (Root Bridge)                       │ Switch A │ (Root Bridge)
+             └──┬────┬──┘                                     └──┬────┬──┘
+                │    │                                           │    │
+       Forward  │    │ Forward                          Forward  │    │ Forward
+                │    │                                           │    │
+             ┌──┴────┴──┐                                     ┌──┴────┴──┐
+             │ Switch B │                                     │ Switch B │
+             └──┬────┬──┘                                     └──┬───────┘
+                │    │ (Redundant Link)                          │    X (BLOCKING PORT: Logically
+                └────┘                                           └────┘  Severed to Prevent Loops)
+```
+
+---
+
+### 1. STP Port Roles
+* **Root Bridge:** The master logical reference switch for the entire Layer 2 domain. All active ports on the Root Bridge are **Designated Ports** (Forwarding).
+* **Root Port (RP):** The single port on a non-root switch with the lowest administrative path cost to reach the Root Bridge.
+* **Designated Port (DP):** The port on a network segment that has the best path cost toward the Root Bridge. Forwards traffic.
+* **Non-Designated / Alternate Port (AP):** Blocked port. Drops all data frames; listens only to STP control messages.
+
+---
+
+### 2. Classical 802.1D Port State Machine & Convergence Timers
+To transition from a redundant link to an active link without creating temporary micro-loops, legacy 802.1D forces ports through a slow **30 to 50-second state transition cycle**:
+
+```
+ [ BLOCKING ] ──( 20s Max Age )──> [ LISTENING ] ──( 15s Forward Delay )──> [ LEARNING ] ──( 15s Forward Delay )──> [ FORWARDING ]
+ (Drops Data,                      (Evaluates BPDUs,                       (Learns MAC addresses,                  (Forwards frames,
+  Listens BPDUs)                    Cannot learn MACs)                      Builds CAM table)                       Full Active State)
+```
+
+* **802.1w Rapid STP (RSTP):** Replaced legacy timers with an active **Proposal/Agreement handshake**, reducing convergence times from 50 seconds down to **sub-second ($<1\text{ second}$)** transitions.
+
+---
+
+## 3. BPDU Frame Anatomy & Dissection
+
+Switches discover network topology and elect the Root Bridge by exchanging specialized Layer 2 control messages called **Bridge Protocol Data Units (BPDUs)** every $2\text{ seconds}$ by default.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        STP CONFIGURATION BPDU ON-THE-WIRE                              │
+├─────────────────┬─────────────────┬───────────┬────────────────────────────────────────┤
+│ Dest MAC        │ Src MAC         │ LLC Encaps│ BPDU PAYLOAD (35 BYTES)                │
+│ 01:80:C2:00:00:00│ Switch Port MAC │ 3 Bytes   │ Root ID, Path Cost, Bridge ID, Timers  │
+├─────────────────┴─────────────────┴───────────┼────────────────────────────────────────┤
+│ (IEEE Reserved Spanning Tree Multicast)       │ (Logical Link Control: 0x42 0x42 0x03) │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### BPDU Payload Fields (Byte-by-Byte Breakdown)
+
+```text
+Field Name                 Size       Description
+─────────────────────────────────────────────────────────────────────────────────────────
+Protocol Identifier        2 Bytes    Always 0x0000 (IEEE 802.1D Spanning Tree)
+Protocol Version           1 Byte     0x00 = Classic STP (802.1D), 0x02 = RSTP (802.1w)
+BPDU Type                  1 Byte     0x00 = Configuration BPDU, 0x80 = Topology Change (TCN)
+Flags                      1 Byte     Bit 0: Topology Change (TC), Bit 7: TC Acknowledgment
+Root Identifier (BID)      8 Bytes    Bridge ID of the assumed Root Bridge
+Root Path Cost             4 Bytes    Cumulative metric cost to reach the Root Bridge
+Bridge Identifier (BID)    8 Bytes    Bridge ID of the switch transmitting this specific BPDU
+Port Identifier            2 Bytes    Port Priority (1 Byte) + Port Number (1 Byte)
+Message Age                2 Bytes    Time elapsed since the Root Bridge generated this BPDU
+Max Age                    2 Bytes    Timeout limit before BPDU expires (Default: 20 seconds)
+Hello Time                 2 Bytes    Interval between configuration BPDUs (Default: 2 seconds)
+Forward Delay              2 Bytes    Time spent in Listening and Learning states (Default: 15s)
+```
+
+---
+
+### The Bridge Identifier (BID) Architecture
+The 8-byte **Bridge ID (BID)** determines the Root Bridge election:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                           8-BYTE BRIDGE IDENTIFIER (BID)                               │
+├───────────────────────────────────────────┬────────────────────────────────────────────┤
+│ 2 BYTES: BRIDGE PRIORITY                  │ 6 BYTES: SYSTEM MAC ADDRESS                │
+├────────────────────┬──────────────────────┼────────────────────────────────────────────┤
+│ Priority Multiplier│ Extended System ID   │ Base MAC Address of Switch Hardware        │
+│ 4 Bits (Steps 4096)│ 12 Bits (VLAN ID)    │ Example: 00:0C:29:AB:CD:EF                 │
+└────────────────────┴──────────────────────┴────────────────────────────────────────────┘
+```
+
+* **Default Priority:** `32768` (Configurable in steps of $4096$: $0, 4096, 8192 \dots 61440$).
+* **Root Bridge Election Rule:** The switch with the **LOWEST Bridge ID (BID)** wins the election.
+  1. Compares **Priority**: Lower priority wins.
+  2. If Priorities are tied: Compares **MAC Address**: Lower numerical MAC address wins.
+
+---
+
+## 4. Offensive Operations: STP Root Hijacking (MITM Attack)
+
+Because legacy STP lacks cryptographic authentication, switches trust all received BPDUs implicitly. An attacker on an unhardened access port can inject weaponized BPDUs to seize the Root Bridge role.
+
+```
+       LEGITIMATE TOPOLOGY                              MALICIOUS ROOT HIJACK ATTACK
+       ┌──────────────────┐                              ┌──────────────────┐
+       │ Core Switch A    │ (Root Bridge)                │ Core Switch A    │ (Loses Root Status)
+       └────────┬─────────┘                              └────────┬─────────┘
+                │                                                 │
+                ▼                                                 ▼
+       ┌──────────────────┐                              ┌──────────────────┐
+       │ Access Switch B  │                              │ Access Switch B  │
+       └────────┬─────────┘                              └────────┬─────────┘
+                │                                                 │
+                ▼                                                 ▼
+       [ Victim Client ]                                 [ Attacker Laptop ] ──( Injects BPDU with )
+                                                         ( Priority: 0     )   ( Priority 0 & Low MAC! )
+                                                         ( Becomes ROOT!   )
+                                                         All L2 Inter-Switch Traffic Routes to Attacker!
+```
+
+---
+
+### Execution Mechanics (Using Scapy or Yersinia)
+1. The attacker attaches to an access port on an unhardened switch.
+2. The attacker uses packet crafting engines to transmit continuous Configuration BPDUs advertising:
+   * **Root Priority:** `0` (Absolute lowest possible value).
+   * **Root MAC:** `00:00:00:00:00:01` (Lowest possible hardware address).
+   * **Root Path Cost:** `0`.
+3. The legitimate switches compare their current Root Bridge (`Priority: 32768`) against the attacker's BPDU (`Priority: 0`).
+4. **The Network Re-converges:** The legitimate switches step down, elect the **attacker as the new Root Bridge**, and transition their links facing the attacker into **Forwarding (Root Ports)**.
+5. **Impact:** The entire enterprise Layer 2 traffic flow pivots toward the attacker's machine, enabling transparent **Man-in-the-Middle (MITM) sniffing and traffic modification**.
+
+---
+
+### The Topology Change Notification (TCN) DoS Flood
+* **Mechanics:** An attacker floods continuous **TCN (Topology Change Notification)** BPDUs into the network.
+* **Impact:** Every time a switch receives a TCN, it reduces its **CAM table aging timer from 300 seconds down to 15 seconds (Forward Delay)**.
+* **Result:** The switch permanently flushes its learned MAC entries, falling back to **Unknown Unicast Flooding** on all ports, degrading switch performance and exposing traffic to sniffing.
+
+---
+
+## 5. Defensive Hardening: STP Control Mitigation
+
+Enterprise networks mitigate Layer 2 STP hijacking by enforcing three essential switchport hardening controls:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        STP DEFENSIVE HARDENING CONTROLS                                │
+├───────────────────┬────────────────────────────────────────────────────────────────────┤
+│ **BPDU Guard**    │ Configured on all Access Ports facing endpoints. If ANY BPDU frame │
+│                   │ is received on the port, the switch immediately disables the port  │
+│                   │ (**err-disable** state), neutralizing rogue Root Bridge injectors. │
+├───────────────────┼────────────────────────────────────────────────────────────────────┤
+│ **Root Guard**    │ Configured on trunk ports facing downstream switches. Prevents     │
+│                   │ that specific port from ever becoming a Root Port. If a superior   │
+│                   │ BPDU is received, the port transitions to **Root-Inconsistent**     │
+│                   │ (Blocking) state until the rogue BPDUs stop.                       │
+├───────────────────┼────────────────────────────────────────────────────────────────────┤
+│ **BPDU Filter**   │ Completely suppresses sending or processing BPDUs on edge ports.   │
+└───────────────────┴────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Live BPDU Dissection & Terminal Diagnostics
+
+```bash
+# 1. Capture Raw STP Configuration BPDUs via tcpdump
+sudo tcpdump -i eth0 -nn -vvv -c 1 'ether dst 01:80:c2:00:00:00'
+
+# Example Wire Capture Output:
+# 00:0c:29:ab:cd:ef > 01:80:c2:00:00:00, 802.3, length 43: LLC, dsap STP (0x42) Individual, ssap STP (0x42) Command, ctrl 0x03:
+#   STP 802.1d, Config, Flags [none], bridge-id 8000.00:0c:29:ab:cd:ef.8001, length 43
+#     message-age 0.00s, max-age 20.00s, hello-time 2.00s, forward-delay 15.00s
+#     root-id 8000.00:0c:29:ab:cd:ef, root-pathcost 0, port-role Designated
+
+# 2. Inspect Linux Kernel Bridge STP State (If host runs bridge interfaces)
+bridge link show
+brctl showstp br0 2>/dev/null || true
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
