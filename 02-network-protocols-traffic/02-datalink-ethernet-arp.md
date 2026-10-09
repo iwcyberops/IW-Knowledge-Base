@@ -676,3 +676,191 @@ brctl showstp br0 2>/dev/null || true
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 🔌 Chapter 02: Layer 1 & Layer 2 — Data Link, Ethernet & ARP (Part 2.4)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: RFC 826 ARP Internals, Cache Poisoning MITM, CAM Flooding & Port Security*
+
+---
+
+## 1. Address Resolution Protocol (RFC 826 Specification)
+
+Because Layer 3 IPv4 addresses are logical abstractions, network interfaces cannot deliver data over physical cables without knowing the destination hardware **Layer 2 MAC Address**. 
+
+**ARP (Address Resolution Protocol)** dynamically maps 32-bit logical IPv4 addresses to 48-bit physical MAC addresses across local broadcast domains.
+
+```
+       [ Host A (192.168.1.10) ]                         [ Host B (192.168.1.50) ]
+                   │                                                 │
+                   │ 1. ARP REQUEST (Broadcast: FF:FF:FF:FF:FF:FF)   │
+                   │    "Who has 192.168.1.50? Tell 192.168.1.10"   │
+                   ├────────────────────────────────────────────────►│
+                   │                                                 │
+                   │ 2. ARP REPLY (Unicast: Directed to Host A MAC)  │
+                   │    "192.168.1.50 is at 00:0C:29:AA:BB:CC"       │
+                   │◄────────────────────────────────────────────────┤
+                   ▼                                                 ▼
+        [ Updates ARP Cache ]                             [ Updates ARP Cache ]
+```
+
+---
+
+### RFC 826 Packet Structure (28 Bytes)
+
+The ARP payload is encapsulated directly inside an Ethernet II frame with EtherType **`0x0806`**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        RFC 826 ARP PACKET WIRE FORMAT (28 BYTES)                       │
+├──────────────────────────┬──────────────────────────┬─────────────┬────────────────────┤
+│ Hardware Type (HTYPE)    │ Protocol Type (PTYPE)    │ HLEN (1B)   │ PLEN (1B)          │
+│ 2 Bytes: 0x0001 (Ethernet│ 2 Bytes: 0x0800 (IPv4)   │ 0x06 (MAC)  │ 0x04 (IPv4)        │
+├──────────────────────────┴──────────────────────────┼─────────────┴────────────────────┤
+│ Opcode (OPER) — 2 Bytes: 0x0001 (Req) / 0x0002 (Rep)│ Sender MAC (SHA) — 6 Bytes       │
+├─────────────────────────────────────────────────────┴──────────────────────────────────┤
+│ Sender IP (SPA) — 4 Bytes                           │ Target MAC (THA) — 6 Bytes       │
+├─────────────────────────────────────────────────────┴──────────────────────────────────┤
+│ Target IP (TPA) — 4 Bytes                           │ (In Request: THA is 00:00:00...) │
+└─────────────────────────────────────────────────────┴──────────────────────────────────┘
+```
+
+#### Field-by-Field Breakdown:
+1. **Hardware Type (HTYPE — 16 Bits):** Network protocol family (`0x0001` = Ethernet).
+2. **Protocol Type (PTYPE — 16 Bits):** Layer 3 protocol being resolved (`0x0800` = IPv4).
+3. **Hardware Address Length (HLEN — 8 Bits):** Byte length of MAC address (`6`).
+4. **Protocol Address Length (PLEN — 8 Bits):** Byte length of IP address (`4`).
+5. **Opcode (OPER — 16 Bits):** Defines packet function:
+   * `0x0001` $\longrightarrow$ **ARP Request**
+   * `0x0002` $\longrightarrow$ **ARP Reply**
+   * `0x0003` $\longrightarrow$ RARP Request (Reverse ARP - Legacy)
+   * `0x0004` $\longrightarrow$ RARP Reply
+6. **Sender Hardware Address (SHA — 48 Bits):** MAC address of the transmitting node.
+7. **Sender Protocol Address (SPA — 32 Bits):** IPv4 address of the transmitting node.
+8. **Target Hardware Address (THA — 48 Bits):** In an ARP Request, this is set to **`00:00:00:00:00:00`** (Unknown); in an ARP Reply, contains target MAC.
+9. **Target Protocol Address (TPA — 32 Bits):** The IPv4 address being resolved.
+
+---
+
+### Gratuitous ARP (GARP)
+A **Gratuitous ARP** is an unsolicited ARP broadcast where the **Sender IP equals the Target IP**:
+* **Operational Purpose:** Broadcast upon interface startup to announce IP presence and detect **IP address conflicts**.
+* **Clustering Failover:** High-availability systems (VRRP, CARP, HSRP) broadcast GARPs to immediately update all switch CAM tables and host ARP caches to point to a backup router MAC during hardware failover.
+
+---
+
+## 2. 🔬 Hexadecimal Dissection: Live ARP Request & Reply
+
+Below is an annotated hex dump of an ARP exchange captured via `tcpdump -xx`:
+
+### 1. ARP Request on the Wire:
+```text
+ff ff ff ff ff ff 00 0c 29 11 22 33 08 06 00 01 08 00 06 04 00 01 00 0c 29 11 22 33 c0 a8 01 0a 00 00 00 00 00 00 c0 a8 01 32
+```
+
+```
+ Ethernet Header:
+  ff ff ff ff ff ff ──> Destination MAC: Broadcast (All hosts listen)
+  00 0c 29 11 22 33 ──> Source MAC: 00:0C:29:11:22:33 (Host A)
+  08 06             ──> EtherType: ARP (0x0806)
+ ARP Payload:
+  00 01             ──> Hardware Type: Ethernet (1)
+  08 00             ──> Protocol Type: IPv4 (0x0800)
+  06                ──> Hardware Size: 6 Bytes
+  04                ──> Protocol Size: 4 Bytes
+  00 01             ──> Opcode: ARP Request (1)
+  00 0c 29 11 22 33 ──> Sender MAC: 00:0C:29:11:22:33
+  c0 a8 01 0a       ──> Sender IP: 192.168.1.10 (Hex c0.a8.01.0a)
+  00 00 00 00 00 00 ──> Target MAC: Unknown (00:00:00:00:00:00)
+  c0 a8 01 32       ──> Target IP: 192.168.1.50 (Hex c0.a8.01.32)
+```
+
+---
+
+## 3. ARP Cache Poisoning (The Stateless Flaw & MITM)
+
+### The Underlying Architectural Vulnerability
+RFC 826 was authored in 1982 with **zero authentication mechanisms**:
+1. Operating systems are **completely stateless**: hosts update their local ARP cache upon receiving an ARP Reply **even if they never sent an ARP Request** (**Unsolicited ARP Reply**).
+2. Endpoints implicitly trust any sender claiming an IP address.
+
+---
+
+### The Bidirectional Man-in-the-Middle (MITM) Execution Flow
+
+```
+                                [ ATTACKER (192.168.1.100) ]
+                                [ MAC: AA:AA:AA:AA:AA:AA   ]
+                                        ▲          │
+                    Intercepted Packets │          │ Forwarded Packets
+                                        │          ▼
+      [ VICTIM (192.168.1.50) ] ◄───────┴──────────┴───────► [ GATEWAY (192.168.1.1) ]
+      [ MAC: VV:VV:VV:VV:VV:VV]                               [ MAC: GG:GG:GG:GG:GG:GG]
+```
+
+1. **Poisoning the Victim:** The attacker transmits continuous unsolicited ARP Replies to Victim (`192.168.1.50`):  
+   $$\text{"192.168.1.1 is at AA:AA:AA:AA:AA:AA"}$$
+   * *Result:* The victim overwrites its ARP cache, binding the Gateway’s IP to the **Attacker’s MAC**.
+2. **Poisoning the Gateway:** The attacker transmits continuous unsolicited ARP Replies to Gateway (`192.168.1.1`):  
+   $$\text{"192.168.1.50 is at AA:AA:AA:AA:AA:AA"}$$
+   * *Result:* The gateway overwrites its ARP cache, binding the Victim’s IP to the **Attacker’s MAC**.
+3. **Kernel Forwarding:** The attacker enables IP forwarding in the Linux kernel:
+   ```bash
+   sudo sysctl -w net.ipv4.ip_forward=1
+   ```
+4. **Impact:** All outbound and inbound traffic between the Victim and the Internet now passes transparently through the Attacker's network interface, enabling unencrypted payload sniffing, DNS spoofing, and credential harvesting.
+
+---
+
+## 4. MAC Flooding & CAM Table Overflow Attacks
+
+While ARP poisoning targets endpoint operating systems, **MAC Flooding** targets the physical Layer 2 switch hardware.
+
+```
+  [ Attacker running macof ] ──( Floods 100,000+ random MACs/sec )──> [ SWITCH CAM TABLE ]
+                                                                                │
+                                                                                ▼
+                                                                     [ CAM MEMORY EXHAUSTION! ]
+                                                                                │
+                                                                                ▼
+                                                                     [ SWITCH FAILS OPEN! ]
+                                                                     Behaves like a legacy HUB;
+                                                                     floods all unicast traffic!
+```
+
+---
+
+### Mechanics of the Switch "Fail-Open" State:
+1. Physical switches have finite memory allocated to their ASIC CAM tables (typically $8,000$ to $128,000$ entries).
+2. The attacker uses tools like `macof` to generate tens of thousands of frames per second with randomized, fake Source MAC addresses.
+3. The switch's CAM table fills completely in milliseconds, purging legitimate learned MACs.
+4. **Fail-Open Transition:** When legitimate frames arrive, the switch cannot locate the Destination MAC in its depleted CAM table. It is forced into **Unknown Unicast Flooding**, broadcasting every host's private traffic out **every physical port**, allowing the attacker to passively sniff the entire network.
+
+---
+
+## 5. Enterprise Layer 2 Defensive Architecture
+
+Modern enterprise networks implement hardware protections directly in switch firmware to neutralize ARP and MAC attacks:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        LAYER 2 SECURITY HARDENING MATRIX                               │
+├───────────────────┬────────────────────────────────────────────────────────────────────┤
+│ **Port Security** │ Enforces a maximum MAC limit on switchports (e.g., maximum 1 MAC). │
+│                   │ **Violation Modes:**                                               │
+│                   │ - `Protect`: Drops unauthorized frames silently.                   │
+│                   │ - `Restrict`: Drops frames and logs an SNMP security alert.        │
+│                   │ - `Shutdown`: Instantly disables the port (**err-disable** state). │
+├───────────────────┼────────────────────────────────────────────────────────────────────┤
+│ **DHCP Snooping** │ Builds a trusted database of `[MAC, IP, Switchport, VLAN]` bindings│
+│                   │ by inspecting valid DHCP transactions on untrusted access ports.   │
+├───────────────────┼────────────────────────────────────────────────────────────────────┤
+│ **DAI**           │ **Dynamic ARP Inspection:** Evaluates all incoming ARP packets     │
+│                   │ against the trusted DHCP Snooping database. Drops any ARP Reply    │
+│                   │ that attempts to advertise an invalid or mismatched IP-to-MAC map. │
+└───────────────────┴────────────────────────────────────────────────────────────────────┘
+```
+
