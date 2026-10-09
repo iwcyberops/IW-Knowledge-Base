@@ -864,3 +864,45 @@ Modern enterprise networks implement hardware protections directly in switch fir
 └───────────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## 6. Linux Kernel ARP Hardening & Terminal Diagnostics
+
+```bash
+# 1. Inspect the Linux Kernel Neighbor / ARP Cache
+ip neigh show
+# Output states: REACHABLE, STALE, DELAY, PERMANENT (Static)
+
+# 2. Add an Immutable Static ARP Entry (Neutralizes Local ARP Spoofing)
+sudo ip neigh add 192.168.1.1 lladdr 00:50:56:fe:ed:01 nud permanent dev eth0
+
+# 3. Kernel Defense: Ignore ARP Announcements on Conflicting Interfaces
+# Drops unsolicited ARP replies from modifying active cache:
+sudo sysctl -w net.ipv4.conf.all.arp_ignore=1
+sudo sysctl -w net.ipv4.conf.all.arp_announce=2
+
+# 4. Flush the Entire Linux ARP Cache
+sudo ip neigh flush dev eth0
+```
+
+---
+
+## 7. Chapter 02 Mastery Verification Matrix
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                   CHAPTER 02: COMPREHENSIVE MASTERY SCORECARD                          │
+├─────────────────┬──────────────────────────────────────────────────────────────────────┤
+│ **Part 2.1**    │ Physical Signaling, PAM-5, Ethernet II Wire Frames & CRC-32 Modulo-2 │
+│ **Part 2.2**    │ 48-bit MAC Topology, Control Bits, CAM Table Silicon & 802.1Q VLANs  │
+│ **Part 2.3**    │ Layer 2 Loop Failure, STP State Machine, BPDU Dissection & Root Hijack│
+│ **Part 2.4**    │ RFC 826 ARP Format, Poisoning MITM, CAM Flooding & Port Security    │
+└─────────────────┴──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
