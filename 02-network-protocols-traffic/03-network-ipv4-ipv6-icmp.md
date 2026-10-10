@@ -235,3 +235,26 @@ Different operating systems load distinct initial default TTL values into the IP
 * **Impact:** The firewall forwards the packet to the trusted intermediate server, which then routes it directly to the protected target, bypassing perimeter firewall boundary rules.
 * 🛡️ **Defense:** Modern edge routers drop all IPv4 packets containing IP Options by default (`ip options drop`).
 
+---
+
+## 6. Live Layer 3 Diagnostics & Kernel Inspection
+
+```bash
+# 1. Capture Raw IPv4 Headers with Decoded TTL and IP ID via tcpdump
+sudo tcpdump -i eth0 -nn -v -c 1 'ip'
+
+# 2. Inspect Linux Path MTU Discovery (DF-bit setting)
+cat /proc/sys/net/ipv4/ip_no_pmtu_disc
+# 0 = Enabled (Kernel sets DF=1), 1 = Disabled
+
+# 3. Audit Local Ephemeral IP Port Allocations
+cat /proc/sys/net/ipv4/ip_local_port_range
+# Output: 32768 60999 (Dynamic source ports allocated to outgoing TCP/UDP)
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
