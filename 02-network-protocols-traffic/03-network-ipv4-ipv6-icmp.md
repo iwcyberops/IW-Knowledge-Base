@@ -697,3 +697,33 @@ Spoofed ICMP Redirect sent to Victim:
 ```
 * **Impact:** The victim's kernel updates its local dynamic route cache, forwarding all traffic destined for `8.8.8.8` directly to the attacker, establishing a transparent Layer 3 Man-in-the-Middle.
 
+---
+
+## 6. Live Fragment & ICMP Diagnostics Matrix
+
+```bash
+# 1. Capture Raw ICMP Traffic and Decode Types/Codes via tcpdump
+sudo tcpdump -i eth0 -nn -v 'icmp'
+
+# 2. Transmit Custom Ping with Explicit MTU Sweep and DF Flag Enabled
+# Tests exact path MTU without fragmentation (1472B Data + 20B IP + 8B ICMP = 1500B MTU):
+ping -c 1 -M do -s 1472 1.1.1.1
+# If output returns "Frag needed and DF set", the link MTU is smaller than 1500!
+
+# 3. Defensive Hardening: Disable ICMP Redirect Acceptance in Linux Kernel
+# Prevents ICMP Redirect MITM attacks:
+sudo sysctl -w net.ipv4.conf.all.accept_redirects=0
+sudo sysctl -w net.ipv4.conf.default.accept_redirects=0
+sudo sysctl -w net.ipv4.conf.all.send_redirects=0
+
+# 4. Audit Fragment Reassembly Timers
+cat /proc/sys/net/ipv4/ipfrag_time
+# Default: 30 seconds before kernel discards incomplete fragment queues
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER Ops] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
