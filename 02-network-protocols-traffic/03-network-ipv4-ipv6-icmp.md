@@ -506,3 +506,194 @@ nmap -sL 192.168.1.0/28
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 📡 Chapter 03: Layer 3 — Network Layer (IPv4, IPv6 & Routing) (Part 3.3)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: IP Fragmentation Engines, PMTUD, Traceroute Mechanics & ICMP Weaponization*
+
+---
+
+## 1. IP Fragmentation & Reassembly (RFC 791 Mechanics)
+
+Physical networks impose a hard ceiling on frame capacity known as the **Maximum Transmission Unit (MTU)**. Standard Ethernet enforces an MTU of **1500 Bytes**. 
+
+When an IPv4 datagram exceeds the MTU of an egress physical link (e.g., encountering a $1492\text{-byte}$ PPPoE link or a $1400\text{-byte}$ VPN tunnel), the router must either **Fragment** the datagram into smaller units or drop it.
+
+```
+       [ Original Datagram: 4000 Bytes (20B IP Header + 3980B Payload) ] ──> MTU: 1500 Bytes
+                                        │
+         ┌──────────────────────────────┼──────────────────────────────┐
+         ▼                              ▼                              ▼
+  [ Fragment 1 ]                 [ Fragment 2 ]                 [ Fragment 3 ]
+  Total Len: 1500 Bytes          Total Len: 1500 Bytes          Total Len: 1040 Bytes
+  Header: 20B                    Header: 20B                    Header: 20B
+  Data: 1480B                    Data: 1480B                    Data: 1020B
+  MF = 1 (More Follows)          MF = 1 (More Follows)          MF = 0 (Last Fragment)
+  Offset = 0                     Offset = 185 (1480 / 8)        Offset = 370 (2960 / 8)
+```
+
+---
+
+### The Mathematical Rules of Fragmentation
+
+Every IP fragment is an independent, valid IPv4 datagram containing its own 20-byte IP header. Three fields in the header govern the fragmentation and reassembly engine:
+
+1. **Identification (IP ID — 16 Bits):** Identical across all fragments. Informs the receiving operating system that incoming fragments belong to the same parent datagram.
+2. **Flags (3 Bits):**
+   * **`DF` (Don't Fragment — Bit 1):** If set to `1`, routers are strictly forbidden from fragmenting. If a packet exceeds the MTU, the router **must drop it** and return an ICMP error.
+   * **`MF` (More Fragments — Bit 2):** Set to `1` for all fragments *except the final fragment*, which has `MF = 0`.
+3. **Fragment Offset (13 Bits):** Dictates where the fragment's payload fits into the original unfragmented stream.
+   * **The 8-Byte Block Rule:** Because the offset field is only 13 bits (cannot address 65,535 individual bytes), it measures position in **units of 8-byte (64-bit) blocks**:
+
+$$\text{Byte Offset Position} = \text{Fragment Offset Value} \times 8$$
+
+$$\text{Data Payload per Intermediate Fragment} \equiv 0 \pmod{8} \quad (\text{Must be a multiple of 8!})$$
+
+---
+
+### ⚠️ The Layer 4 Blind Spot (Critical Security Reality)
+* **Fragment 0 (Offset 0):** Contains the IPv4 header **AND the Layer 4 header** (TCP Source/Destination Ports, Sequence Numbers, or UDP headers).
+* **Fragments 1 through N (Offset > 0):** Contain the IPv4 header and **raw payload data ONLY**. They have **NO TCP or UDP port headers**!
+
+> 🔴 **Firewall Evasion Implications:**  
+> Legacy stateless firewalls that filter traffic by inspecting Layer 4 ports (e.g., blocking Port 4444) can only inspect Fragment 0. If non-zero fragments are forwarded, the firewall cannot see the destination port, allowing raw exploit fragments to pass through uninspected!
+
+---
+
+## 2. Path MTU Discovery (PMTUD) & The Black Hole Problem
+
+Modern operating systems avoid IP fragmentation by discovering the smallest MTU across the entire routed path using **PMTUD (RFC 1191)**.
+
+```
+       [ Sender: Sets DF = 1 ] ──( 1500B Datagram )──> [ Intermediate Router: MTU = 1400B ]
+                                                                   │
+                                                                   ▼ (Cannot Fragment: DF=1)
+                                                       [ Packet Dropped Silently! ]
+                                                                   │
+       [ Sender Receives ICMP Alert ] ◄──( ICMP Type 3, Code 4 )───┘
+       "Fragmentation Needed, DF Set. Next-Hop MTU = 1400"
+       Sender reduces TCP MSS (Max Segment Size) to fit 1400B!
+```
+
+---
+
+### The PMTUD "Black Hole" Failure
+* **The Problem:** Many paranoid system administrators configure firewalls to blindly **drop ALL ICMP traffic** (`iptables -A INPUT -p icmp -j DROP`).
+* **The Failure Mode:** When an intermediate router drops a packet that exceeds its MTU, it sends back an **ICMP Type 3 Code 4** packet. The sender's firewall drops this ICMP packet.
+* **The Symptom (Black Hole Connection):** Small packets (ping, TCP 3-way handshake) succeed because they are $<1400\text{ bytes}$. But the moment a large payload is sent (TLS Certificate exchange, HTTP POST, file transfer), the connection completely freezes and times out without an error.
+
+---
+
+## 3. Time-to-Live (TTL) & The Traceroute Engine
+
+The 8-bit **TTL** field prevents packets from looping infinitely. The `traceroute` utility leverages TTL decrements and ICMP error generation to map Layer 3 router paths:
+
+```
+                  ┌────────────────────────────────────────────────────────┐
+                  │              THE TRACEROUTE EXECUTION ENGINE           │
+                  └──────────────────────────┬─────────────────────────────┘
+                                             │
+      ┌──────────────────────────────────────┼──────────────────────────────────────┐
+      ▼ (Probe 1: TTL = 1)                   ▼ (Probe 2: TTL = 2)                   ▼ (Probe 3: TTL = 3)
+ [ Router 1: Decrements TTL to 0 ]      [ Router 2: Decrements TTL to 0 ]      [ Target Destination Reached ]
+  Drops packet; generates:               Drops packet; generates:               Processes payload; generates:
+  ICMP Type 11, Code 0                   ICMP Type 11, Code 0                   ICMP Type 3, Code 3 (Port Unreach)
+  (Time-to-Live Exceeded!)               (Time-to-Live Exceeded!)               (Or TCP SYN-ACK / Echo Reply)
+```
+
+---
+
+### Implementation Discrepancies: Linux vs Windows
+
+| Operating System | Tool Name | Transport Mechanism | Target Probe Signature |
+| :--- | :--- | :--- | :--- |
+| **Linux / Unix** | `traceroute` | **UDP Datagrams** | Probes high, randomized UDP ports (`33434` to `33534`). |
+| **Microsoft Windows** | `tracert` | **ICMP Echo Requests** | Transmits standard ICMP Type 8 Echo Requests. |
+| **Offensive Scanners** | `tcptraceroute` | **TCP SYN Segments** | Probes open web ports (e.g., Port 80/443) to traverse firewalls. |
+
+---
+
+## 4. ICMP Protocol Architecture (RFC 792)
+
+The **Internet Control Message Protocol (ICMP)** is the diagnostic and error-reporting mechanism for Layer 3. It is encapsulated directly inside IPv4 with **Protocol Number `1`**.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        RFC 792 ICMP PACKET WIRE FORMAT                                 │
+├─────────────────────┬─────────────────────┬────────────────────────────────────────────┤
+│ Type (8 Bits)       │ Code (8 Bits)       │ Checksum (16 Bits: 1's Complement Sum)     │
+├─────────────────────┴─────────────────────┴────────────────────────────────────────────┤
+│ Rest of Header (4 Bytes: Depends on Type - e.g., Identifier & Sequence Number)         │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ Data Payload: For Error Messages, includes the ORIGINAL IP HEADER + 8 BYTES of Payload │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+> 💡 **Why ICMP Errors Include 8 Bytes of the Original Payload:**  
+> When a router returns an error (e.g., Destination Unreachable), the sending operating system needs to know **which process and socket triggered the error**. The first 8 bytes of the Layer 4 payload contain the **Source and Destination Ports**, allowing the Linux kernel to map the error back to the originating process!
+
+---
+
+### Critical ICMP Types and Codes Reference
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CORE ICMP MESSAGE TYPES & CODES                                 │
+├──────┬──────┬───────────────────────────────┬──────────────────────────────────────────┤
+│ Type │ Code │ Message Name                  │ Operational Trigger                      │
+├──────┼──────┼───────────────────────────────┼──────────────────────────────────────────┤
+│ **0**│ `0`  │ **Echo Reply**                │ Response to Ping (Ping Success)          │
+├──────┼──────┼───────────────────────────────┼──────────────────────────────────────────┤
+│ **3**│ `0`  │ Net Unreachable               │ Routing table has no route to network    │
+│      │ `1`  │ Host Unreachable              │ Final router cannot resolve target ARP   │
+│      │ `2`  │ Protocol Unreachable          │ Receiving OS does not support L4 protocol│
+│      │ `3`  │ **Port Unreachable**          │ Target UDP port is closed (No listener)  │
+│      │ `4`  │ **Fragmentation Needed (DF)** │ Packet > MTU, but DF flag was set        │
+├──────┼──────┼───────────────────────────────┼──────────────────────────────────────────┤
+│ **5**│ `0`  │ Redirect for Network          │ Informs host of a better gateway route   │
+│      │ `1`  │ **Redirect for Host**         │ Informs host of a better gateway for host│
+├──────┼──────┼───────────────────────────────┼──────────────────────────────────────────┤
+│ **8**│ `0`  │ **Echo Request**              │ Diagnostic Ping Probe                    │
+├──────┼──────┼───────────────────────────────┼──────────────────────────────────────────┤
+│**11**│ `0`  │ **Time-to-Live Exceeded**     │ TTL reached 0 in transit (Traceroute)    │
+│      │ `1`  │ Frag Reassembly Time Exceeded │ Reassembly timer expired before all frags│
+└──────┴──────┴───────────────────────────────┴──────────────────────────────────────────┘
+```
+
+---
+
+## 5. Offensive Exploitation & Layer 3 Attack Classes
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   LAYER 3 EXPLOIT MECHANICS                            │
+├──────────────────────────┬─────────────────────────────────────────────┤
+│ 1. Teardrop Attack       │ Overlapping fragment offsets crash OS kernel│
+│ 2. Tiny Fragment Evasion │ Hides Layer 4 ports past packet filters     │
+│ 3. ICMP Redirect MITM    │ Injects rogue gateway routes via ICMP Type 5│
+└──────────────────────────┴─────────────────────────────────────────────┘
+```
+
+---
+
+### 1. The Teardrop Attack (Fragment Overlap Crash)
+* **Vulnerability:** Older TCP/IP kernel stacks allocated memory buffers based on the payload size of Fragment 1, and calculated subsequent fragment sizes by subtracting offsets:
+  $$\text{Payload Length} = \text{Total Length} - \text{Offset}$$
+* **Exploitation:** An attacker crafts Fragment 2 with an **Offset that overlaps Fragment 1** (e.g., Fragment 1 has bytes $0\text{--}99$, and Fragment 2 claims offset $80$, but specifies a total length smaller than the offset).
+* **Impact:** The calculation yielded a **negative number** or an integer underflow wrapped to a massive 32-bit integer, causing a kernel memory corruption crash (**Blue Screen / Kernel Panic**).
+
+---
+
+### 2. ICMP Redirect Route Hijacking (Layer 3 MITM)
+If a host has multiple routers on its subnet, an attacker on the same local segment can transmit a spoofed **ICMP Type 5 Code 1 (Redirect for Host)** message:
+
+```text
+Spoofed ICMP Redirect sent to Victim:
+"To reach 8.8.8.8, use Gateway 192.168.1.100 (Attacker's IP) instead of 192.168.1.1!"
+```
+* **Impact:** The victim's kernel updates its local dynamic route cache, forwarding all traffic destined for `8.8.8.8` directly to the attacker, establishing a transparent Layer 3 Man-in-the-Middle.
+
