@@ -727,3 +727,275 @@ cat /proc/sys/net/ipv4/ipfrag_time
    [IW CYBER Ops] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 📡 Chapter 03: Layer 3 — Network Layer (IPv4, IPv6 & Routing) (Part 3.4)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: IPv6 Header Architecture, NDP vs ARP, NAT/PAT Tables & Routing Engines*
+
+---
+
+## 1. IPv6 Datagram Architecture (RFC 8200)
+
+IPv6 expands address space from 32 bits ($4.3\times 10^9$ addresses) to **128 bits** ($3.4\times 10^{38}$ addresses). To optimize router processing speeds, IPv6 abandons the variable-length IPv4 header in favor of a **Fixed 40-Byte Base Header**.
+
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|Version| Traffic Class |           Flow Label                  |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|         Payload Length        |  Next Header  |   Hop Limit   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                         Source Address                        +
+|                           (128 Bits)                          |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                      Destination Address                      +
+|                           (128 Bits)                          |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+│ ◄──────────────── Fixed Base Header: Exactly 40 Bytes ──────► │
+```
+
+---
+
+### Field-by-Field Architectural Enhancements
+
+1. **Version (4 Bits):** Always `0110` (Decimal **6**).
+2. **Traffic Class (8 Bits):** Replaces IPv4 DSCP/ECN for Quality of Service (QoS).
+3. **Flow Label (20 Bits):** Identifies specific packet flows requiring identical QoS handling, allowing intermediate routers to route packets without re-inspecting Layer 4 ports.
+4. **Payload Length (16 Bits):** Size of the payload **following the 40-byte base header** (Includes extension headers and Layer 4 data; max $65,535\text{ bytes}$).
+5. **Next Header (8 Bits):** Replaces the IPv4 `Protocol` field. Points directly to the Layer 4 protocol (e.g., `6` for TCP) OR the next chained **Extension Header**.
+6. **Hop Limit (8 Bits):** Replaces the IPv4 `TTL`. Decrements by 1 at every router hop.
+7. **Source & Destination Addresses (128 Bits / 16 Bytes Each).**
+
+> ⚡ **Performance Optimization (No Header Checksum):**  
+> **IPv6 has NO Header Checksum.** The IETF removed it because Layer 2 (Ethernet CRC-32) and Layer 4 (TCP/UDP checksums) already enforce data integrity. Eliminating the checksum means intermediate routers decrement the Hop Limit **without recalculating a mathematical checksum**, accelerating packet routing.
+
+---
+
+### IPv6 Extension Headers (Chained Architecture)
+Rather than cluttering the base header with optional fields, IPv6 chains **Extension Headers** sequentially using the `Next Header` pointer:
+
+```
+  [ IPv6 Base Header ] ──> [ Routing Extension ] ──> [ Fragment Extension ] ──> [ TCP Header ]
+  (Next Header = 43)        (Next Header = 44)        (Next Header = 6)          (Layer 4 Payload)
+```
+
+---
+
+## 2. IPv6 Addressing Rules & Neighbor Discovery (NDP)
+
+An IPv6 address consists of **eight 16-bit blocks (128 bits)** represented in hexadecimal, separated by colons: `2001:0db8:85a3:0000:0000:8a2e:0370:7334`.
+
+### RFC 5952 Compression Rules:
+1. **Omit Leading Zeros:** `0042` becomes `42`; `0000` becomes `0`.
+2. **Double Colon (`::`) Substitution:** Replace the longest continuous run of consecutive all-zero blocks with `::` **once per address**:
+   * Raw: `fe80:0000:0000:0000:020c:29ff:feab:cdef`
+   * Compressed: `fe80::20c:29ff:feab:cdef`
+
+---
+
+### IPv6 Address Scopes
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CORE IPv6 ADDRESS CLASSIFICATIONS                               │
+├─────────────────────┬──────────────────┬───────────────────────────────────────────────┤
+│ Address Scope       │ Prefix / Range   │ Operational Purpose                           │
+├─────────────────────┼──────────────────┼───────────────────────────────────────────────┤
+│ **Global Unicast**  │ `2000::/3`       │ Publicly routable Internet addresses          │
+│ **Unique Local**    │ `fc00::/7` (ULA) │ Private enterprise networks (IPv6 RFC 1918)   │
+│ **Link-Local**      │ `fe80::/10`      │ Communication isolated to the local wire      │
+│ **Multicast**       │ `ff00::/8`       │ Replaces broadcast (e.g., `ff02::1` = All Nodes)│
+│ **Loopback**        │ `::1/128`        │ Host local interface (`127.0.0.1` equivalent) │
+└─────────────────────┴──────────────────┴───────────────────────────────────────────────┘
+```
+
+---
+
+### NDP: How IPv6 Replaces ARP
+**IPv6 has NO Broadcast and NO ARP.** Address resolution is handled by **NDP (Neighbor Discovery Protocol — RFC 4861)** running over **ICMPv6**:
+
+```
+       [ Host A needs MAC of Host B ]                   [ Host B ]
+                     │                                      │
+                     │ 1. NEIGHBOR SOLICITATION (NS)        │
+                     │    ICMPv6 Type 135 (Multicast)       │
+                     ├─────────────────────────────────────►│
+                     │                                      │
+                     │ 2. NEIGHBOR ADVERTISEMENT (NA)       │
+                     │    ICMPv6 Type 136 (Unicast)         │
+                     │◄─────────────────────────────────────┤
+```
+
+* **SLAAC (Stateless Address Autoconfiguration):** Hosts automatically generate their own globally unique IPv6 address without DHCP by requesting network prefixes via **Router Solicitations (RS — Type 133)** and **Router Advertisements (RA — Type 134)**.
+* **EUI-64 Transformation:** Squeezes a 48-bit MAC address into a 64-bit Interface Identifier by inserting `0xFFFE` in the middle and inverting the **Universal/Local (U/L) bit**.
+
+---
+
+## 3. Network Address Translation: NAT vs PAT
+
+Because IPv4 address space is exhausted, **NAT (Network Address Translation — RFC 1631)** enables thousands of private RFC 1918 hosts to share a single public IPv4 address.
+
+```
+       [ PRIVATE LAN: 192.168.1.0/24 ]                     [ PUBLIC INTERNET ]
+                                        ┌─────────────┐
+  Host A: 192.168.1.50:49152 ──────────>│ NAT ROUTER  │ ──> Public IP: 203.0.113.1:10001 ──> Web Server
+  Host B: 192.168.1.75:49152 ──────────>│ (Translates)│ ──> Public IP: 203.0.113.1:10002 ──> Web Server
+                                        └─────────────┘
+```
+
+---
+
+### Translation Topologies
+
+1. **Static NAT (1:1):** Maps one private IP to one static public IP permanently (Used for hosting public web/mail servers).
+2. **Dynamic NAT (Pool-to-Pool):** Maps private IPs to an allocated pool of public IPs on a first-come, first-served basis.
+3. **PAT (Port Address Translation / NAT Overload):** Maps thousands of private IPs to a **single public IP** by rewriting the **Layer 4 Source Port Number**.
+
+---
+
+### The Kernel NAT / PAT State Table (The 5-Tuple Engine)
+
+To route incoming replies back to the correct private host, the router tracks state in an internal NAT table:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        ROUTER PAT CONNTRACTION STATE TABLE                             │
+├─────────────┬──────────────────────────┬──────────────────────────┬────────────────────┤
+│ Protocol    │ Inside Source (Private)  │ Outside Translated (NAT) │ Destination Target │
+├─────────────┼──────────────────────────┼──────────────────────────┼────────────────────┤
+│ TCP         │ `192.168.1.50:49152`     │ `203.0.113.1:10001`      │ `93.184.216.34:80` │
+│ TCP         │ `192.168.1.75:49152`     │ `203.0.113.1:10002`      │ `93.184.216.34:80` │
+└─────────────┴──────────────────────────┴──────────────────────────┴────────────────────┘
+```
+
+* **SNAT (Source NAT):** Modifies the source address of egress packets leaving the LAN (Used for client outbound access).
+* **DNAT (Destination NAT / Port Forwarding):** Modifies the destination address of ingress packets arriving from the Internet, forwarding traffic from `Public_IP:80` to an internal `192.168.1.100:80`.
+
+---
+
+## 4. Routing Foundations & Protocol Engines
+
+A router’s core operational mandate is **Path Determination**: selecting the best egress interface across disparate subnets.
+
+```
+       [ INCOMING PACKET: DEST IP = 10.1.1.55 ]
+                          │
+                          ▼
+       ┌──────────────────────────────────────┐
+       │ ROUTE TABLE CONTAINS:                │
+       │ Route A: 10.0.0.0/8   via Gateway 1  │
+       │ Route B: 10.1.1.0/24  via Gateway 2  │ ◄─── WINS! (/24 is more specific than /8)
+       └──────────────────┬───────────────────┘
+                          │
+                          ▼
+       [ FORWARD OUT VIA GATEWAY 2 (LONGEST PREFIX MATCH) ]
+```
+
+---
+
+### 1. The Longest Prefix Match (LPM) Rule
+If an IP address matches multiple routes in a routing table, the router **MUST forward the packet using the route with the LONGEST subnet mask (highest prefix length)**.
+
+* Destination: `192.168.1.15`
+  * Matches `0.0.0.0/0` (Prefix: 0)
+  * Matches `192.168.0.0/16` (Prefix: 16)
+  * Matches `192.168.1.0/24` (Prefix: 24) $\implies$ **Selected Route!**
+
+---
+
+### 2. Administrative Distance (AD) & Route Preference
+
+If a router learns routes to the same destination from different routing protocols, it selects the protocol with the **lowest Administrative Distance (AD)**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        ADMINISTRATIVE DISTANCE (AD) HIERARCHY                          │
+├──────────────────────────┬───────────┬─────────────────────────────────────────────────┤
+│ Route Source             │ AD Value  │ Reliability Ranking                             │
+├──────────────────────────┼───────────┼─────────────────────────────────────────────────┤
+│ **Directly Connected**   │ **`0`**   │ Absolute Trust (Physical cable attached)        │
+│ **Static Route**         │ **`1`**   │ High Trust (Configured manually by admin)       │
+│ **eBGP (External BGP)**  │ **`20`**  │ Primary Inter-Domain Path Protocol              │
+│ **OSPF**                 │ **`110`** │ Open Shortest Path First (Link-State IGP)       │
+│ **RIP**                  │ **`120`** │ Routing Information Protocol (Distance-Vector)  │
+│ **iBGP (Internal BGP)**  │ **`200`** │ Internal Autonomous System Transit              │
+└──────────────────────────┴───────────┴─────────────────────────────────────────────────┘
+```
+
+---
+
+### 3. Core Routing Protocols Overview
+
+* **RIP (Routing Information Protocol — Distance Vector):**  
+  Uses **Hop Count** as its metric (Maximum 15 hops; 16 hops = Infinity/Unreachable). Broadcasts entire routing table every 30 seconds. Inefficient for modern networks.
+* **OSPF (Open Shortest Path First — Link State):**  
+  Uses **Dijkstra’s SPF (Shortest Path First)** algorithm to compute a complete topological map of the network. Metric is **Cost** ($\text{Cost} = \frac{\text{Reference Bandwidth}}{\text{Interface Bandwidth}}$). Converges in milliseconds.
+* **BGP (Border Gateway Protocol — Path Vector):**  
+  The routing protocol that connects the global Internet. Routes traffic across **Autonomous Systems (ASNs)** using attributes like **AS-Path** rather than technical speed metrics.
+
+---
+
+## 5. Offensive Operations & Threat Surface Analysis
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   LAYER 3 EXPLOIT MECHANICS                            │
+├──────────────────────────┬─────────────────────────────────────────────┤
+│ 1. Rogue IPv6 RA Attack  │ Injects SLAAC Router Advertisements to hijack│
+│                          │ Windows dual-stack default gateways         │
+│ 2. BGP Prefix Hijacking  │ Announces malicious /24 prefixes to divert   │
+│                          │ global traffic through attacker ASNs        │
+│ 3. NAT State Exhaustion  │ Floods concurrent TCP connections to exhaust│
+│                          │ router PAT translation memory buffers       │
+└──────────────────────────┴─────────────────────────────────────────────┘
+```
+
+---
+
+### Vector 1: Rogue IPv6 Router Advertisement (SLAAC MITM)
+* **The Vulnerability:** Modern operating systems (Windows, macOS) have IPv6 enabled by default and **prefer IPv6 over IPv4**.
+* **Exploitation:** Even if an enterprise network only runs IPv4, an attacker can broadcast rogue **ICMPv6 Router Advertisements (RA)** via tools like `mitm6`.
+* **Impact:** All network endpoints automatically configure an IPv6 address, assign their **Default Gateway and DNS server to the Attacker**, completely bypassing IPv4 perimeter controls and establishing full MITM over DNS/traffic.
+
+---
+
+### Vector 2: BGP Prefix Hijacking
+* **Mechanics:** Because BGP enforces the **Longest Prefix Match (LPM)** rule, if a legitimate ISP advertises `203.0.113.0/23`, an attacker announcing `203.0.113.0/24` from a rogue Autonomous System will divert 100% of the world's traffic for that `/24` block into the attacker’s network.
+
+---
+
+## 6. Live IPv6 & Routing Diagnostics Matrix
+
+```bash
+# 1. Inspect Local IPv6 Link-Local and Global Addresses
+ip -6 addr show
+
+# 2. View Kernel IPv6 Neighbor Cache (NDP equivalent of ARP cache)
+ip -6 neigh show
+
+# 3. View the Complete Linux Kernel Routing Table (FIB)
+ip route show
+
+# 4. Inspect Active Linux Connection Tracking (NAT Table Entries)
+sudo conntrack -L 2>/dev/null | head -n 10
+
+# 5. Add a Static Route via CLI
+sudo ip route add 10.10.10.0/24 via 192.168.1.1 dev eth0
+```
+
+
