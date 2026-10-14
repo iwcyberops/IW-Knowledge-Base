@@ -221,3 +221,52 @@ c0 01 00 50 1a 2b 3c 4d 00 00 00 00 a0 02 72 10 3b a5 00 00 02 04 05 b4 04 02 08
 * `3b a5` $\longrightarrow$ TCP Checksum: `0x3BA5`.
 * `02 04 05 b4` $\longrightarrow$ Option: **MSS** (`Kind 2`, `Len 4`, `Value: 0x05B4` = **1460 Bytes**).
 
+---
+
+## 5. Offensive Tradecraft: Abnormal Flag Combinations (Stealth Scans)
+
+By crafting illegal combinations of TCP flags that violate RFC 793, offensive scanners (Nmap) probe how different operating system kernels respond, enabling firewall evasion and OS fingerprinting:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        OFFENSIVE TCP FLAG MANIPULATION MATRIX                          │
+├───────────────────┬────────────────────┬───────────┬───────────────────────────────────┤
+│ Scan Type         │ Injected Flags     │ Hex Value │ Target Response if Port is CLOSED │
+├───────────────────┼────────────────────┼───────────┼───────────────────────────────────┤
+│ **TCP SYN Scan**  │ `SYN`              │ `0x002`   │ Returns **`RST-ACK`**             │
+│ **NULL Scan**     │ *None* (All Zeros) │ `0x000`   │ Returns **`RST-ACK`** (RFC 793)   │
+│ **FIN Scan**      │ `FIN`              │ `0x001`   │ Returns **`RST-ACK`** (RFC 793)   │
+│ **Xmas Tree Scan**│ `FIN + PSH + URG`  │ `0x029`   │ Returns **`RST-ACK`** (RFC 793)   │
+│ **SYN-FIN Scan**  │ `SYN + FIN`        │ `0x003`   │ Illegal: Bypasses naive firewalls │
+└───────────────────┴────────────────────┴───────────┴───────────────────────────────────┘
+```
+
+> 🔍 **The RFC 793 Closed Port Rule:**  
+> RFC 793 mandates that if a segment arrives on a **CLOSED port**, and the packet does NOT have the RST flag set, the receiving operating system **MUST return an RST segment**!  
+> Conversely, if the port is **OPEN**, RFC 793 dictates that unexpected packets (NULL, FIN, Xmas) **must be silently dropped**. This allows attackers to map open ports without ever generating full connection logs!
+
+---
+
+## 6. Live Transport Diagnostics & Packet Inspection
+
+```bash
+# 1. Capture Raw TCP Handshake Flags via tcpdump
+sudo tcpdump -i eth0 -nn -v 'tcp[tcpflags] & (tcp-syn|tcp-ack) != 0'
+
+# 2. Filter for Outbound Connection Requests (SYN Only)
+sudo tcpdump -i eth0 -nn 'tcp[13] = 2'
+
+# 3. Inspect Active TCP Sockets and Sequence Queues
+ss -tanp
+# Displays state, Local/Remote IP:Port, Send-Q, and Recv-Q buffers
+
+# 4. View Linux Kernel Local Ephemeral Port Bounds
+cat /proc/sys/net/ipv4/ip_local_port_range
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
