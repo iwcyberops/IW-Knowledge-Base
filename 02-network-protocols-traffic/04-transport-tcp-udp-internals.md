@@ -472,3 +472,42 @@ On-path network surveillance appliances (such as the **Great Firewall of China /
   Client drops connection        Forged Src IP = Client              Server drops connection
 ```
 
+---
+
+### The Window Vulnerability & RFC 5961 Mitigation
+
+* **The Historical Vulnerability (RFC 793):**  
+  An attacker did not need to guess the *exact* 32-bit Sequence Number to tear down a connection! As long as the forged RST's sequence number fell anywhere inside the receiver's current **Receive Window** ($\text{RCV.NXT} \le \text{SEQ} < \text{RCV.NXT} + \text{RCV.WND}$), the receiver accepted it and killed the socket.
+* **The Modern Defense (RFC 5961):**  
+  Modern Linux kernels enforce strict **Challenge ACKs**:
+  1. An incoming `RST` must match the **EXACT expected sequence number (`SEQ == RCV.NXT`)** to abort immediately.
+  2. If the `RST` falls within the window but is not exact, the kernel **does not kill the connection**. Instead, it transmits an unprompted **Challenge ACK** back to the remote party to verify if the connection is truly active!
+
+---
+
+## 6. Live Transport State Diagnostics Matrix
+
+```bash
+# 1. Real-Time Summary of Active TCP Sockets by State
+ss -s
+# Output shows: Total, TCP (estab, closed, orphaned, timewait)
+
+# 2. Filter Exclusively for Sockets in TIME_WAIT
+ss -tan state time-wait
+
+# 3. Filter for Leaked Sockets in CLOSE_WAIT
+ss -tan state close-wait
+
+# 4. Forcibly Kill an Active TCP Connection via tcpkill (dsniff suite)
+sudo tcpkill -i eth0 'tcp port 4444'
+
+# 5. Capture Live RST Packets via tcpdump
+sudo tcpdump -i eth0 -nn 'tcp[tcpflags] & tcp-rst != 0'
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
