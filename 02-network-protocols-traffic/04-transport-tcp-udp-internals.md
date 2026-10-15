@@ -270,3 +270,205 @@ cat /proc/sys/net/ipv4/ip_local_port_range
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 🚚 Chapter 04: Layer 4 — Transport Layer (TCP & UDP Deep Dive) (Part 4.2)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: TCP Finite State Machine, 4-Way Teardown, TIME_WAIT Physics & RST Injection*
+
+---
+
+## 1. The Unified TCP Finite State Machine (RFC 793)
+
+TCP operation is governed by an explicit **Finite State Machine (FSM)** consisting of exactly **11 distinct operational states**. Every connection transition is triggered by a userland socket system call (`connect()`, `listen()`, `close()`) or an incoming network packet flag (`SYN`, `ACK`, `FIN`, `RST`).
+
+```
+                            ┌──────────────┐
+                            │    CLOSED    │
+                            └──────┬───────┘
+                     Passive Open  │  Active Open
+                    (listen call)  │ (connect call, send SYN)
+                                   ▼
+             ┌─────────────┐               ┌─────────────┐
+             │   LISTEN    │               │  SYN_SENT   │
+             └──────┬──────┘               └──────┬──────┘
+       Recv SYN     │                             │ Recv SYN-ACK
+       Send SYN-ACK │                             │ Send ACK
+                    ▼                             ▼
+             ┌─────────────┐               ┌─────────────┐
+             │  SYN_RCVD   │──────────────>│ ESTABLISHED │
+             └─────────────┘  Recv ACK     └──────┬──────┘
+                                                  │
+                 ┌────────────────────────────────┴────────────────────────────────┐
+                 ▼ (Active Close: send FIN)                                        ▼ (Passive Close: recv FIN)
+          ┌─────────────┐                                                   ┌─────────────┐
+          │ FIN_WAIT_1  │                                                   │ CLOSE_WAIT  │
+          └──────┬──────┘                                                   └──────┬──────┘
+    Recv ACK     │  Recv FIN (Simultaneous Close)                                  │ Send FIN
+    (of FIN)     │  Send ACK                                                       ▼
+                 ▼        ▼                                                 ┌─────────────┐
+          ┌──────────┐ ┌─────────┐                                          │  LAST_ACK   │
+          │FIN_WAIT_2│ │ CLOSING │                                          └──────┬──────┘
+          └────┬─────┘ └────┬────┘                                                 │ Recv ACK
+      Recv FIN │            │ Recv ACK                                             │ (of FIN)
+      Send ACK │            │ (of FIN)                                             ▼
+               └─────►┌─────▼─────┐                                         ┌─────────────┐
+                      │ TIME_WAIT │ ──( 2MSL Timer )───────────────────────>│   CLOSED    │
+                      └───────────┘                                         └─────────────┘
+```
+
+---
+
+### The 11 TCP Connection States Reference Matrix
+
+| State | Role / Context | Description & Kernel Socket Condition |
+| :--- | :--- | :--- |
+| **`CLOSED`** | Client / Server | Fictional starting point; no active socket connection exists. |
+| **`LISTEN`** | Server | Daemon is waiting for incoming connection requests on a bound port. |
+| **`SYN_SENT`** | Client | Sent a `SYN` segment; waiting for a matching `SYN-ACK`. |
+| **`SYN_RCVD`** | Server | Received a `SYN`, sent a `SYN-ACK`; waiting for the final `ACK`. |
+| **`ESTABLISHED`**| Both | Handshake complete; full-duplex data transfer pipeline is active. |
+| **`FIN_WAIT_1`** | Active Closer | Initiated shutdown; sent `FIN`, waiting for remote `ACK` or `FIN`. |
+| **`FIN_WAIT_2`** | Active Closer | Received `ACK` of its own `FIN`; waiting for the remote host's `FIN`. |
+| **`CLOSE_WAIT`** | Passive Closer | Received remote `FIN`, sent `ACK`; waiting for local app to call `close()`. |
+| **`CLOSING`** | Both | Simultaneous close: Both hosts sent `FIN` concurrently before getting ACKs. |
+| **`LAST_ACK`** | Passive Closer | Sent final `FIN`; waiting for the final `ACK` from the active closer. |
+| **`TIME_WAIT`** | Active Closer | Waiting for $2\text{MSL}$ (Maximum Segment Lifetime) to ensure clean termination. |
+
+---
+
+## 2. The Graceful 4-Way Connection Teardown
+
+Because TCP is **Full-Duplex** (two independent, unidirectional data streams flowing in opposite directions), each direction must be terminated independently using a **FIN (Finish)** segment.
+
+```
+       [ ACTIVE CLOSER (e.g., Client) ]                 [ PASSIVE CLOSER (e.g., Server) ]
+       (State: ESTABLISHED)                             (State: ESTABLISHED)
+              │                                                 │
+              │ 1. [FIN-ACK]                                    │
+              │    Client calls close(); sends FIN (SEQ=U)      │
+              ├────────────────────────────────────────────────►│ (State: CLOSE_WAIT)
+              │                                                 │ Server socket informs application
+              │ 2. [ACK]                                        │
+              │    Server kernel ACKs client's FIN (ACK=U+1)    │
+              │◄────────────────────────────────────────────────┤
+              ▼                                                 │
+       (State: FIN_WAIT_2)                                      │ 3. [FIN-ACK]
+       Client can no longer send data;                          │    Server application finishes work;
+       can still receive incoming data.                         │    Server calls close(); sends FIN (SEQ=V)
+              │                                                 │◄───┘
+              │◄────────────────────────────────────────────────┤ (State: LAST_ACK)
+              │                                                 │
+              │ 4. [ACK]                                        │
+              │    Client ACKs server's FIN (ACK=V+1)           │
+              ├────────────────────────────────────────────────►│
+              ▼                                                 ▼
+       (State: TIME_WAIT)                                 (State: CLOSED)
+       Waits 2MSL Timer (~60 seconds)                     Socket memory released immediately
+              ▼
+       (State: CLOSED)
+```
+
+---
+
+## 3. The `TIME_WAIT` State & 2MSL Physics
+
+The host that initiates the **Active Close** (sends the first `FIN`) is forced by RFC 793 to enter the **`TIME_WAIT` state** for a duration of **$2\text{MSL}$ (2 $\times$ Maximum Segment Lifetime)**.
+
+* **MSL (Maximum Segment Lifetime):** The maximum time a stray packet can survive in the physical network before routers drop it (Defined by RFC 793 as $120\text{ seconds}$, though the Linux kernel hardcodes it to **$60\text{ seconds}$**).
+* **$2\text{MSL}$ Duration in Linux:** $2 \times 60 = \mathbf{120\text{ Seconds}}$ (or 60 seconds on modern kernels).
+
+---
+
+### Why `TIME_WAIT` is Mandatory (The Two Fatal Failure Modes)
+
+#### Problem 1: Preventing Delayed Duplicate Data Corruption
+Consider an IP packet delayed in a congested router. If a connection closes and the client immediately opens a **new connection reusing the exact same 5-tuple** (`Src IP, Src Port, Dst IP, Dst Port, Protocol`), the delayed duplicate packet from the old session might suddenly arrive and inject corrupted bytes into the new session!  
+* **Fix:** Waiting $2\text{MSL}$ guarantees that all delayed packets from the old session have expired and died on the wire.
+
+#### Problem 2: Guaranteeing Reliable Connection Termination
+If the Active Closer's final **`ACK` (Packet 4)** is lost on the wire:
+* The Passive Closer times out and **retransmits its `FIN`**.
+* If the Active Closer had transitioned directly to `CLOSED`, it would respond with an **`RST` (Reset)**, causing the Passive Closer to report an abnormal connection termination error to the application instead of a clean exit!
+
+---
+
+### ⚠️ The `TIME_WAIT` Socket Exhaustion Threat
+
+On high-throughput web proxies, API gateways, or C2 redirectors processing tens of thousands of outbound connections per second, sockets accumulate in the `TIME_WAIT` state:
+
+```
+[ Problem Scenario ]
+65,535 Ephemeral Ports Available.
+At 2,000 connections/sec with a 60s TIME_WAIT:
+2000 * 60 = 120,000 Sockets trapped in TIME_WAIT!
+Result: "Cannot assign requested address" (EADDRNOTAVAIL) — Out of Outbound Ports!
+```
+
+#### 🛡️ Linux Kernel Mitigation Tuning:
+```bash
+# 1. Enable fast recycling of TIME_WAIT sockets for outgoing connections:
+sudo sysctl -w net.ipv4.tcp_tw_reuse=1
+
+# 2. Reduce the FIN-WAIT-2 orphan socket timeout (Default: 60 sec):
+sudo sysctl -w net.ipv4.tcp_fin_timeout=15
+
+# 3. Expand the local ephemeral port range:
+sudo sysctl -w net.ipv4.ip_local_port_range="1024 65535"
+```
+
+---
+
+## 4. Half-Closed vs Half-Open Sockets
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        SOCKET CONDITION TAXONOMY                       │
+├───────────────────┬────────────────────────────────────────────────────┤
+│ **Half-Closed**   │ **Legitimate RFC 793 state.** The client calls     │
+│ (shutdown SHUT_WR)│ `shutdown(fd, SHUT_WR)`, closing its outbound pipe,│
+│                   │ but keeps its inbound pipe open to receive data.   │
+├───────────────────┼────────────────────────────────────────────────────┤
+│ **Half-Open**     │ **Abnormal unsynchronized state.** One endpoint has│
+│ (Unsynchronized)  │ crashed, rebooted, or lost power without sending a │
+│                   │ `FIN` or `RST`. The remote host still assumes the  │
+│                   │ socket is `ESTABLISHED`!                           │
+├───────────────────┼────────────────────────────────────────────────────┤
+│ **CLOSE_WAIT**    │ **Application Resource Leak.** The remote host sent│
+│ **Socket Leak**   │ a `FIN`, but the local application never calls     │
+│                   │ `close()`. Sockets hang in `CLOSE_WAIT` forever!   │
+└───────────────────┴────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Violent Termination: TCP RST Injections & Attacks
+
+While a 4-way handshake closes a session gracefully, a **`RST` (Reset)** segment aborts a connection violently:
+* `RST` segments carry **zero payload** and have the **`RST` flag set (`0x004`)**.
+* They are **never acknowledged** by the receiver.
+* When a host receives a valid `RST`, it immediately deallocates the socket memory and drops the connection.
+
+---
+
+### Offensive Vector: TCP RST Injection (Censorship & Session Tearing)
+
+On-path network surveillance appliances (such as the **Great Firewall of China / GFW**, malicious ISPs, or on-path MITM attackers) inject forged `RST` packets to kill connections carrying forbidden keywords or unencrypted C2 traffic:
+
+```
+      [ CLIENT ] ══════════════ ( HTTP / C2 Session ) ══════════════> [ SERVER ]
+          │                                                               │
+          │             ┌───────────────────────────────────┐             │
+          │             │   ON-PATH SNIFFER / CENSOR (GFW)  │             │
+          │             └─────────────────┬─────────────────┘             │
+          │                               │                               │
+          │◄── Spoofed RST (Targeting Client)                             │
+          │    Forged Src IP = Server     │                               │
+          ▼                               ▼                               ▼
+  [ Socket Killed! ]             Spoofed RST (Targeting Server) ───► [ Socket Killed! ]
+  Client drops connection        Forged Src IP = Client              Server drops connection
+```
+
