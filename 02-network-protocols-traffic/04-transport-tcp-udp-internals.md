@@ -726,3 +726,33 @@ Under standard cumulative ACKs, if the sender transmits Packets 1 through 10, an
   ```
 * **Impact:** Triggers a kernel assertion failure and immediate **Kernel Panic / Remote Denial-of-Service** of the target Linux server!
 
+---
+
+## 6. Live Congestion Diagnostics & Kernel Profiling Matrix
+
+```bash
+# 1. Inspect Active Congestion Control Engine per TCP Socket
+ss -ti '( dport = :443 or sport = :443 )'
+# Displays: cubic/bbr, cwnd value, ssthresh, rtt, and rto metrics
+
+# 2. Query Default System Congestion Algorithm
+sysctl net.ipv4.tcp_congestion_control
+# Output: net.ipv4.tcp_congestion_control = cubic (or bbr)
+
+# 3. View All Available Kernel Congestion Modules
+sysctl net.ipv4.tcp_available_congestion_control
+
+# 4. Enable Google BBR Congestion Control (Linux 4.9+)
+sudo modprobe tcp_bbr
+sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+
+# 5. Capture Live TCP Zero-Window Probes via tcpdump
+sudo tcpdump -i eth0 -nn 'tcp[14:2] == 0 and tcp[tcpflags] & tcp-ack != 0'
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
