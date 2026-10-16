@@ -511,3 +511,15 @@ sudo tcpdump -i eth0 -nn 'tcp[tcpflags] & tcp-rst != 0'
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 🚚 Chapter 04: Layer 4 — Transport Layer (TCP & UDP Deep Dive) (Part 4.3)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: Sliding Window Physics, RTO Mathematics, Congestion Engines & SACK Panic*
+
+---
+
+## 1. The Byte-Stream Reliability Model
