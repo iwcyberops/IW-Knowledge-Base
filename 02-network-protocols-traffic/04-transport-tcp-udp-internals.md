@@ -523,3 +523,206 @@ sudo tcpdump -i eth0 -nn 'tcp[tcpflags] & tcp-rst != 0'
 ---
 
 ## 1. The Byte-Stream Reliability Model
+
+Unlike protocols that count discrete packets, TCP views communication as a **continuous, unbroken stream of bytes**, where every individual byte transmitted is assigned an incremental 32-bit **Sequence Number**.
+
+```
+  Data Stream:  [ B y t e   0 ] [ B y t e   1 ] [ B y t e   2 ] ... [ B y t e   N ]
+  SEQ Counter:     1000            1001            1002                1000 + N
+```
+
+---
+
+### Sequence Number & Acknowledgment Calculation Rule
+
+For any transmitted data segment:
+
+$$\mathbf{\text{Next Sequence Number} = \text{Current SEQ} + \text{Payload Length (Bytes)}}$$
+
+```
+   [ TRANSMITTER ]                                               [ RECEIVER ]
+          │                                                            │
+          │ 1. Data Segment: SEQ = 1000, Length = 500 Bytes            │
+          │    (Transmits Byte Range: 1000 through 1499)               │
+          ├───────────────────────────────────────────────────────────►│
+          │                                                            │
+          │ 2. Cumulative ACK Response: ACK = 1500                     │
+          │    ("I have received all bytes up to 1499 safely.          │
+          │     Send me Byte 1500 next!")                              │
+          │◄───────────────────────────────────────────────────────────┤
+```
+
+* **Cumulative Acknowledgment:** An ACK number does not acknowledge an individual packet; it confirms that **every preceding byte up to $\text{ACK} - 1$ has been assembled in correct sequential order**.
+
+---
+
+## 2. Sliding Window Flow Control & Window Scaling
+
+**Flow Control** protects the **Receiver’s memory buffer** from being overwhelmed by a sender transmitting data faster than the receiving application can process it.
+
+```
+       ┌────────────────────────────────────────────────────────────────────────┐
+       │                       THE TCP SLIDING WINDOW BUFFER                    │
+       ├───────────────────┬───────────────────┬───────────────────┬────────────┤
+       │ 1. Sent & ACKed   │ 2. Sent, No ACK   │ 3. Ready to Send  │ 4. Blocked │
+       │ (Memory Released) │ (In-Flight Data)  │ (Within Window)   │ (Outside)  │
+       └───────────────────┴───────────────────┴───────────────────┴────────────┘
+       ◄─────────────── Completed ────────────►│ ◄──── Usable Window ─────► │
+```
+
+---
+
+### The Window Size Dynamic (`rwnd`)
+With every ACK returned, the receiver advertises its **Receive Window (`rwnd`)**, calculated as:
+
+$$\mathbf{\text{Advertised Window} = \text{Total Socket Buffer Capacity} - \text{Buffered Unread Bytes}}$$
+
+* **TCP Zero Window (`rwnd = 0`):** Informs the sender that the receiver's application buffer is 100% full. The sender must **halt transmission immediately**.
+* **Zero Window Probes (ZWP):** To prevent permanent deadlocks if a window update packet is lost, the sender periodically transmits a 1-byte **Zero Window Probe**. The receiver responds with its current window size without advancing the sequence number.
+
+---
+
+### RFC 7323: The Window Scale Option (WSOPT)
+
+The base TCP header allocates only **16 bits** for the Window Size field, capping buffer advertisement at **$65,535\text{ Bytes}$ ($64\text{ KB}$)**. On modern high-speed Gigabit links with high latency (high BDP), this artificial ceiling kills throughput.
+
+**Window Scaling (WSOPT)** is negotiated exclusively during the 3-Way Handshake:
+* Defines a 1-byte **Scale Factor ($S$)** between $0$ and $14$.
+* The receiving host left-shifts the 16-bit window value by the scale factor:
+
+$$\mathbf{\text{True Window Size} = \text{Header Window Value} \times 2^S \quad (\text{or } \text{Value} \ll S)}$$
+
+* With a maximum scale factor of $14$, the window capacity expands to $65,535 \times 2^{14} = \mathbf{1,073,725,440\text{ Bytes} \ (\approx 1\text{ Gigabyte})}$.
+
+---
+
+## 3. Retransmission Engines & RTO Mathematics
+
+TCP must dynamically adapt its **Retransmission Timeout (RTO)**. If RTO is too short, TCP causes unnecessary retransmissions; if too long, the link remains idle during real packet drops.
+
+```
+       [ Packet Sent at T0 ] ──> [ ACK Received at T1 ] ──> Measured SampleRTT = T1 - T0
+```
+
+---
+
+### Jacobson / Karels RTO Estimation Algorithm (RFC 6298)
+
+The kernel continuously computes an exponential moving average of Round-Trip Time (**SRTT — Smoothed RTT**) and its statistical variance (**RTTVAR**):
+
+$$1.\quad \text{Difference} = |\text{SampleRTT} - \text{SRTT}|$$
+
+$$2.\quad \text{RTTVAR} \leftarrow (1 - \beta) \times \text{RTTVAR} + \beta \times \text{Difference} \quad (\beta = 0.25)$$
+
+$$3.\quad \text{SRTT} \leftarrow (1 - \alpha) \times \text{SRTT} + \alpha \times \text{SampleRTT} \quad (\alpha = 0.125)$$
+
+$$4.\quad \mathbf{\text{RTO} = \text{SRTT} + \max(G, 4 \times \text{RTTVAR})}$$
+
+*(where $G$ is the kernel clock granularity, typically $1\text{ ms}$). Minimum RTO is bounded by the Linux kernel to **$200\text{ ms}$**.*
+
+---
+
+### Karn’s Algorithm (Ambiguity Elimination)
+* **The Problem:** If a packet times out, is retransmitted, and an ACK arrives, did the ACK confirm the *original* transmission or the *retransmitted* segment?
+* **The Rule:** **Never compute RTT samples from retransmitted segments.** If a retransmission occurs, double the RTO (**Exponential Timer Backoff**) without updating SRTT until clean, un-retransmitted data is exchanged.
+
+---
+
+## 4. Congestion Control Architecture: Protecting the Network Pipe
+
+While Flow Control protects the receiver endpoint, **Congestion Control** protects intermediate routers from **Congestion Collapse**.
+
+$$\mathbf{\text{Usable Transmission Window} = \min(\text{rwnd}, \text{cwnd})}$$
+
+Where **`cwnd` (Congestion Window)** is an in-memory limit dynamically calculated by the sender's kernel.
+
+---
+
+### The Classical 4-Phase State Engine (RFC 5681)
+
+```
+ Window Size (cwnd)
+      ▲
+      │                              Congestion Avoidance (Linear: AIMD)
+  16  │                       ┌─────────────────────────
+      │                      ╱                         │
+   8  │               ┌─────┘                          │ Drop Detected!
+      │       Slow    │                                └─────► ssthresh = cwnd / 2
+   4  │       Start   │                                        cwnd = 1 (Reno)
+      │      (Exp)   ┌┘
+   1  │   ───┌───────┘
+      └───┴──┴──┴─────┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴────────► Time (RTT Cycles)
+```
+
+---
+
+#### 1. Slow Start Phase
+* Starts with an initial window: $\text{cwnd} = \text{IW}$ (typically $10\text{ MSS}$ in modern Linux).
+* For **every valid ACK received**, increase `cwnd` by $1\text{ MSS}$.
+* **Mathematical Growth:** The window **doubles every RTT cycle ($1, 2, 4, 8, 16\dots$)**—exponential growth until it hits the **Slow Start Threshold (`ssthresh`)**.
+
+#### 2. Congestion Avoidance (AIMD — Additive Increase, Multiplicative Decrease)
+* Once $\text{cwnd} \ge \text{ssthresh}$, switch to linear growth:
+  $$\text{cwnd} \leftarrow \text{cwnd} + \frac{1}{\text{cwnd}} \quad (\text{Increases by exactly } 1\text{ MSS per RTT cycle})$$
+* **Multiplicative Decrease:** Upon packet loss (RTO timeout), set $\text{ssthresh} = \frac{\text{cwnd}}{2}$, and collapse $\text{cwnd} = 1\text{ MSS}$.
+
+#### 3. Fast Retransmit (The 3 Duplicate ACK Rule)
+* If Packet 2 is lost out of a stream of 10 packets, the receiver receives Packets 3, 4, and 5.
+* The receiver continues returning $\text{ACK} = 2$ with every out-of-order packet it receives.
+* **The Trigger:** When the sender receives **3 Duplicate ACKs (4 identical ACKs total)**, it knows Packet 2 was lost on the wire. It retransmits Packet 2 **IMMEDIATELY** without waiting for the slow RTO timer to expire!
+
+#### 4. Fast Recovery
+* Instead of dropping `cwnd` to 1, modern algorithms set $\text{cwnd} = \text{ssthresh}$ and continue linear growth directly, preventing throughput crashes.
+
+---
+
+### Modern Congestion Algorithms Overview
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CONGESTION CONTROL ALGORITHM COMPARISON                         │
+├───────────────────┬─────────────────────┬──────────────────────────────────────────────┤
+│ Algorithm         │ Optimization Metric │ Primary Operational Use Case                 │
+├───────────────────┼─────────────────────┼──────────────────────────────────────────────┤
+│ **TCP CUBIC**     │ Loss-Based          │ **Default Linux Engine.** Uses a cubic growth│
+│                   │                     │ function to scale rapidly on high-speed BDP. │
+├───────────────────┼─────────────────────┼──────────────────────────────────────────────┤
+│ **Google BBR**    │ Model-Based         │ Measures actual bottleneck bandwidth and RTT;│
+│                   │ (Congestion-free)   │ ignores packet loss, neutralizing bufferbloat│
+├───────────────────┼─────────────────────┼──────────────────────────────────────────────┤
+│ **TCP Reno**      │ Classical AIMD      │ Academic reference standard; legacy devices. │
+└───────────────────┴─────────────────────┴──────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Selective Acknowledgment (SACK) & Exploit Forensics
+
+Under standard cumulative ACKs, if the sender transmits Packets 1 through 10, and Packet 3 is dropped:
+* The receiver can only ACK Packet 2.
+* The sender is forced to **retransmit ALL packets from 3 to 10**, wasting bandwidth.
+
+### RFC 2018: SACK Option Header Structure
+**SACK (Selective Acknowledgment)** allows the receiver to inform the sender of non-contiguous blocks of data that have arrived safely using optional header blocks:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        SACK OPTION WIRE BLOCK FORMAT                                   │
+├─────────────────────┬─────────────────────┬────────────────────────────────────────────┤
+│ Kind = 5 (1 Byte)   │ Length (1 Byte)     │ Edge Block 1: Left Edge (32B) - Right Edge │
+├─────────────────────┴─────────────────────┴────────────────────────────────────────────┤
+│ Edge Block 2: Left Edge (32 Bits) - Right Edge (32 Bits) ... Up to 4 Blocks Max        │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+* The sender inspects the Left/Right edge blocks and retransmits **ONLY the missing holes** (Packet 3), leaving the rest of the stream untouched!
+
+---
+
+### 🔴 Security Vulnerability: The SACK Panic Flaw (CVE-2019-11477)
+* **Mechanics:** The Linux kernel manages SACK segments inside linked lists of `sk_buff` structures.
+* **The Exploit:** An attacker crafts a sequence of fragmented SACK packets with deliberate gaps, forcing the kernel to split its internal socket queues into thousands of tiny descriptors until a 16-bit integer counter overflows:
+  ```text
+  skb->tcp_gso_segs (16-bit unsigned integer, max 65,535) OVERFLOWS!
+  ```
+* **Impact:** Triggers a kernel assertion failure and immediate **Kernel Panic / Remote Denial-of-Service** of the target Linux server!
+
