@@ -960,3 +960,48 @@ The root cause of all reflection attacks is that transit ISPs allow customers to
 └───────────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
+## 6. Live Transport Security Diagnostics Matrix
+
+```bash
+# 1. Inspect System SYN Queue Drops & Overflow Errors
+netstat -s | grep -Ei "listen|overflow|dropped"
+
+# 2. View Active UDP Sockets and Memory Buffers
+ss -uanp
+# Identifies listening UDP daemons and unread datagram queues
+
+# 3. Capture Live DNS Amplification Attempts via tcpdump
+sudo tcpdump -i eth0 -nn -v 'udp and port 53 and greater 512'
+
+# 4. Hardening Linux Kernel TCP SYN Queue Parameters
+sudo sysctl -w net.ipv4.tcp_max_syn_backlog=4096
+sudo sysctl -w net.core.somaxconn=4096
+sudo sysctl -w net.ipv4.tcp_syncookies=1
+
+# 5. Enable Strict Reverse Path Filtering (uRPF) in Linux
+sudo sysctl -w net.ipv4.conf.all.rp_filter=1
+```
+
+---
+
+## 7. Chapter 04 Mastery Verification Matrix
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                   CHAPTER 04: COMPREHENSIVE MASTERY SCORECARD                          │
+├─────────────────┬──────────────────────────────────────────────────────────────────────┤
+│ **Part 4.1**    │ RFC 793 TCP Header Bits, 3-Way Handshake, Phantom Bytes, Port Ranges │
+│ **Part 4.2**    │ TCP 11-State FSM, 4-Way Teardown, TIME_WAIT 2MSL Physics, RST Aborts │
+│ **Part 4.3**    │ Sliding Window Flow Control, WSOPT Math, RTO Calculation, CUBIC/BBR  │
+│ **Part 4.4**    │ SYN Flood Backlog Queues, SYN Cookies, UDP 8B Header, Amplification  │
+└─────────────────┴──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
