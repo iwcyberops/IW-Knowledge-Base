@@ -536,4 +536,33 @@ To neutralize DHCP attacks, enterprise switches implement **DHCP Snooping**:
  └───────────────────────────────────┘               └────────────────────────────────────┘
 ```
 
+* **DHCP Snooping Table:** The switch inspects legitimate DHCP traffic on untrusted ports and logs a cryptographic binding database: `[MAC Address, IP Address, Lease Time, VLAN, Switchport]`. This database powers **Dynamic ARP Inspection (DAI)** to block ARP spoofing!
+
+---
+
+## 5. Live Protocol Diagnostics & Lab Verification Matrix
+
+```bash
+# 1. Capture Raw DHCP Transactions via tcpdump
+sudo tcpdump -i eth0 -nn -vvv -s0 'port 67 or port 68'
+
+# 2. Audit DNSSEC Validation Flags using dig (+dnssec)
+dig target.com +dnssec
+# Inspect Header Flags: 'ad' flag (Authenticated Data) confirms cryptographically valid signature!
+
+# 3. Inspect DNSSEC Records (RRSIG and DNSKEY)
+dig target.com RRSIG +short
+dig target.com DNSKEY +multi
+
+# 4. Release and Re-Request Local DHCP Lease via Linux CLI
+sudo dhclient -r eth0   # Release active lease (Transmits DHCPRELEASE)
+sudo dhclient -v eth0   # Obtain fresh lease (Runs full DORA handshake)
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
 
