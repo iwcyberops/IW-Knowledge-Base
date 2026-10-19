@@ -303,3 +303,13 @@ sudo tcpdump -i eth0 -l -nn 'udp port 53' | awk '{print $NF}'
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+   
+---
+
+# 🌍 Chapter 05: Application Protocols & Cryptography (Part 5.2)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: Kaminsky DNS Cache Poisoning, DNSSEC Chains & DHCP Starvation MITM*
+
+---
