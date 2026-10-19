@@ -303,7 +303,7 @@ sudo tcpdump -i eth0 -l -nn 'udp port 53' | awk '{print $NF}'
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
-   
+
 ---
 
 # 🌍 Chapter 05: Application Protocols & Cryptography (Part 5.2)
@@ -313,3 +313,227 @@ sudo tcpdump -i eth0 -l -nn 'udp port 53' | awk '{print $NF}'
 > *Track: Kaminsky DNS Cache Poisoning, DNSSEC Chains & DHCP Starvation MITM*
 
 ---
+
+## 1. DNS Cache Poisoning & The Kaminsky Attack
+
+**DNS Cache Poisoning** is the injection of forged, malicious IP mappings into a recursive resolver's in-memory cache. Once poisoned, all network clients querying the resolver are silently redirected to an attacker’s infrastructure.
+
+```
+       [ VICTIM RESOLVER: 192.168.1.1 ] ────────────────────────────────────────┐
+              │                                                                 │
+              │ 1. Queries Root/TLD for "target.com"                            │
+              ▼                                                                 ▼
+   [ LEGITIMATE AUTHORITATIVE NS ]                              [ ATTACKER MACHINE ]
+   (Replies slowly with valid IP)                               (Floods 10,000 Forged Replies/sec)
+              │                                                                 │
+              │ ◄─── Arrives late (Dropped!)          Arrives First! ───────────┤
+              │                                       "target.com is at ATTACKER_IP"
+              ▼                                                                 ▼
+   [ Cache Poisoned! All clients visiting target.com route to Attacker ] ◄──────┘
+```
+
+---
+
+### The Classic Poisoning Flaw vs The Kaminsky Breakthrough
+
+* **The Classic Attack Flaw:** If an attacker queried `target.com`, the resolver cached the legitimate IP for the duration of the record's **TTL (Time to Live)** (e.g., 24 hours). The attacker had only a **single fractional-second race-window** to guess the 16-bit Transaction ID. If they failed, they had to wait 24 hours for the cache to expire!
+* **The Dan Kaminsky Breakthrough (2008):**  
+  Kaminsky bypassed the TTL cache constraint entirely by querying **randomized non-existent subdomains**:
+
+$$\text{Attacker Queries: } \mathbf{\text{random001.target.com}}, \quad \mathbf{\text{random002.target.com}}, \quad \mathbf{\text{random003.target.com}} \dots$$
+
+```
+   [ Attacker Queries: "random1337.target.com" ] ──> [ Target Resolver ]
+                                                              │
+                                                              ▼ (Resolver queries Authoritative NS)
+   [ Attacker Floods 5,000 Spoofed Replies ]: ◄───────────────┘
+   - Transaction ID: Brute-forced (0 to 65535)
+   - Question: random1337.target.com
+   - Authority Section (The Payload!):
+       target.com.  IN  NS  ns.attacker.com.   ◄── GLUE RECORD INJECTION!
+   - Additional Section:
+       ns.attacker.com.  IN  A  10.10.14.5
+```
+
+1. Because `random1337.target.com` does not exist in the resolver's cache, the resolver is **forced to query the authoritative server every single time**.
+2. When the attacker successfully guesses the 16-bit Transaction ID for one of the random subdomains, the resolver accepts the packet.
+3. Crucially, the resolver does not just cache the answer; it parses the **Authority Section**, overwriting its root authoritative name server mapping for the **entire domain (`target.com`)** with the attacker's IP!
+4. **Impact:** The attacker permanently seizes the entire domain zone without waiting for TTL expiration.
+
+---
+
+### Mathematical Probability & Entropy Defense
+
+A forged DNS response must match two entropy parameters:
+1. **Transaction ID (TXID):** 16 Bits ($2^{16} = 65,536\text{ values}$).
+2. **UDP Source Port:** 16 Bits ($2^{16} = 65,536\text{ values}$).
+
+$$\text{Combined Search Space} = 2^{16} \times 2^{16} = 2^{32} \approx \mathbf{4,294,967,296\text{ Combinations}}$$
+
+* **Historical Vulnerability:** Early BIND implementations used static UDP source ports (Port 53), reducing the attack complexity down to only $65,536$ packets!
+* **Source Port Randomization (SPR):** Modern resolvers allocate a cryptographically randomized UDP source port for every outbound query, rendering Kaminsky-style brute-forcing mathematically infeasible over standard networks.
+
+---
+
+## 2. Cryptographic Integrity: DNSSEC Architecture
+
+Standard DNS has zero authentication; **DNSSEC (DNS Security Extensions — RFC 4033 / 4034 / 4035)** adds **Public-Key Cryptography** to verify the origin authenticity and integrity of DNS records.
+
+> ⚠️ **Critical Reality:** **DNSSEC does NOT encrypt DNS traffic.** Data remains plain-text; DNSSEC solely proves that the data was not tampered with in transit.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CORE DNSSEC RESOURCE RECORD (RR) TYPES                          │
+├─────────────┬──────────────────────────────────────────────────────────────────────────┤
+│ **RRSIG**   │ **Resource Record Signature:** Digital cryptographic signature (RSA/ECDSA│
+│             │ wrapping an RRset (e.g., the signature verifying an 'A' record).         │
+├─────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ **DNSKEY**  │ Public Key Record. Hosts the **ZSK** (Zone-Signing Key) and **KSK**      │
+│             │ (Key-Signing Key) used to validate RRSIG signatures.                     │
+├─────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ **DS**      │ **Delegation Signer:** Cryptographic SHA-256 hash of the child zone's KSK│
+│             │ stored inside the parent zone (Creates the cryptographic **Chain of Trust│
+├─────────────┼──────────────────────────────────────────────────────────────────────────┤
+│ **NSEC /**  │ **Authenticated Denial of Existence:** Cryptographically proves that a   │
+│ **NSEC3**   │ queried subdomain does NOT exist, preventing forged NXDOMAIN responses.  │
+└─────────────┴──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### The Hierarchical Chain of Trust
+
+```
+  [ ICANN ROOT ZONE: "." ] ──> Holds Root KSK (Globally trusted Trust Anchor)
+             │
+             ▼ (Root signs DS record for .com)
+  [ gTLD ZONE: ".com" ]    ──> Validates parent DS; signs DS record for target.com
+             │
+             ▼ (TLD signs DS record for target.com)
+  [ AUTHORITATIVE: "target.com" ] ──> Signs zone A records with ZSK (Validated by Resolver!)
+```
+
+---
+
+## 3. Dynamic Host Configuration Protocol (RFC 2131)
+
+**DHCP** dynamically assigns IP addresses, subnet masks, default gateways, and DNS resolvers to unconfigured endpoint hosts connecting to a Layer 2 network.
+
+* **Transport:** UDP. **Server listens on Port 67**; **Clients listen on Port 68**.
+
+```
+       [ UNCONFIGURED CLIENT: 0.0.0.0 ]                    [ DHCP SERVER: 192.168.1.1 ]
+                      │                                                │
+                      │ 1. DHCPDISCOVER (Layer 2 & Layer 3 Broadcast)  │
+                      │    Src: 0.0.0.0:68 ──> Dest: 255.255.255.255:67│
+                      ├───────────────────────────────────────────────►│
+                      │                                                │
+                      │ 2. DHCPOFFER (Unicast / Broadcast)             │
+                      │    Offered IP: 192.168.1.50, Lease: 86400s     │
+                      │◄───────────────────────────────────────────────┤
+                      │                                                │
+                      │ 3. DHCPREQUEST (Broadcast to notify all servers│
+                      │    "I accept 192.168.1.50 from 192.168.1.1")   │
+                      ├───────────────────────────────────────────────►│
+                      │                                                │
+                      │ 4. DHCPACK (Final Confirmation & Parameters)   │
+                      │    Gateway: 192.168.1.1, DNS: 1.1.1.1          │
+                      │◄───────────────────────────────────────────────┤
+                      ▼                                                ▼
+              [ Client Configured ]                             [ IP Bound ]
+```
+
+---
+
+### 🔬 The DHCP Packet Wire Architecture (240+ Bytes)
+
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|   Op (1B)     |  HType (1B)   |   HLen (1B)   |   Hops (1B)   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                       Transaction ID (XID)                    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|         Secs (2B)             |         Flags (2B)            |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          ciaddr (Client IP)                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          yiaddr ("Your" Allocated IP)         |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          siaddr (Next Server IP)              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                          giaddr (Relay Agent IP)              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
+|                  chaddr (Client Hardware MAC: 16 Bytes)       |
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                   sname (Server Hostname: 64 Bytes)           |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     file (Boot Filename: 128 Bytes)           |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                Magic Cookie (4 Bytes: 0x63 0x82 0x53 0x63)    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                     Options (Variable Length)                 |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+* **Opcode:** `1` = BootRequest (Client), `2` = BootReply (Server).
+* **`yiaddr` ("Your IP"):** The IP address the server is allocating to the client.
+* **`chaddr`:** The physical MAC address of the requesting client.
+* **The Magic Cookie:** Fixed 4-byte marker `0x63 0x82 0x53 0x63` signaling the start of dynamic options.
+* **Core DHCP Options:**
+  * **Option 53 (Message Type):** `1` = Discover, `2` = Offer, `3` = Request, `5` = ACK, `6` = NAK.
+  * **Option 1:** Subnet Mask (`255.255.255.0`).
+  * **Option 3:** Router / Default Gateway IP.
+  * **Option 6:** Domain Name Servers (DNS IPs).
+
+---
+
+## 4. DHCP Offensive Vectors: Starvation & Rogue Server MITM
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        DHCP ATTACK TAXONOMY                            │
+├──────────────────────────┬─────────────────────────────────────────────┤
+│ 1. DHCP Starvation       │ Exhausts all available IP leases in the     │
+│                          │ server pool via forged MAC requests         │
+│ 2. Rogue DHCP Server     │ Deploys unauthorized server providing rogue │
+│                          │ Gateway and DNS parameters (Full MITM)      │
+└──────────────────────────┴─────────────────────────────────────────────┘
+```
+
+---
+
+### Step 1: The DHCP Starvation Attack
+* **Mechanics:** An attacker connects to the local switch and uses automated packet generation tools (`dhcpstarv`, Scapy, Yersinia) to flood thousands of **DHCPDISCOVER** requests per second.
+* **The Trick:** Each request features a **randomized, unique Client Hardware Address (`chaddr`)**.
+* **Result:** The legitimate DHCP server allocates an IP lease for every spoofed MAC until its entire dynamic scope pool is completely exhausted. Legitimate new endpoints connecting to the network receive zero IP addresses.
+
+---
+
+### Step 2: The Rogue DHCP Server Deployment (Man-in-the-Middle)
+Once the legitimate server is starved, the attacker launches a rogue DHCP service:
+1. A legitimate user connects and broadcasts a `DHCPDISCOVER`.
+2. The attacker's rogue server responds instantly with a `DHCPOFFER`:
+   * Assigned IP: Valid network IP.
+   * **Default Gateway (Option 3):** Set to the **Attacker’s IP**.
+   * **DNS Server (Option 6):** Set to the **Attacker’s IP**.
+3. **Impact:** The victim accepts the parameters. All corporate Internet traffic and DNS queries now route directly through the attacker's machine, enabling transparent sniffing, credential capture, and payload injection.
+
+---
+
+### 🛡️ Defensive Hardening: DHCP Snooping
+
+To neutralize DHCP attacks, enterprise switches implement **DHCP Snooping**:
+
+```
+ [ UNTRUSTED ACCESS PORTS (Clients) ]                 [ TRUSTED TRUNK PORT (DHCP Server) ]
+ ┌───────────────────────────────────┐               ┌────────────────────────────────────┐
+ │ Drops all DHCPOFFER and DHCPACK   │               │ Allows DHCP Server Responses       │
+ │ packets! Rogue servers neutralized│               │ Passes DORA exchange cleanly       │
+ └───────────────────────────────────┘               └────────────────────────────────────┘
+```
+
+
