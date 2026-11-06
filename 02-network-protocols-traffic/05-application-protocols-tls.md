@@ -566,3 +566,281 @@ sudo dhclient -v eth0   # Obtain fresh lease (Runs full DORA handshake)
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
 
+---
+
+# 🌍 Chapter 05: Application Protocols & Cryptography (Part 5.3)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: RFC 7230 HTTP/1.1 Wire Stream, Chunked Framing, Security Headers & Request Smuggling*
+
+---
+
+## 1. The HTTP/1.1 Wire Stream Architecture (RFC 7230 / RFC 9112)
+
+The **Hypertext Transfer Protocol (HTTP/1.1)** is a stateless, application-level, text-based client-server request/response protocol operating over a reliable transport layer (typically TCP Port 80, or TLS-encrypted TCP Port 443).
+
+```
+               [ HTTP/1.1 REQUEST STREAM ]                           [ HTTP/1.1 RESPONSE STREAM ]
+  ┌──────────────────────────────────────────────────┐   ┌──────────────────────────────────────────────────┐
+  │ GET /api/v1/auth HTTP/1.1\r\n                    │   │ HTTP/1.1 200 OK\r\n                              │
+  ├──────────────────────────────────────────────────┤   ├──────────────────────────────────────────────────┤
+  │ Host: target.com\r\n                             │   │ Date: Mon, 25 Aug 2026 12:00:00 GMT\r\n          │
+  │ User-Agent: Mozilla/5.0...\r\n                   │   │ Server: nginx\r\n                                │
+  │ Accept: application/json\r\n                     │   │ Content-Type: application/json\r\n               │
+  │ Content-Length: 0\r\n                            │   │ Content-Length: 34\r\n                           │
+  ├──────────────────────────────────────────────────┤   ├──────────────────────────────────────────────────┤
+  │ \r\n (Empty Line / CRLF Header Delimiter)        │   │ \r\n (Empty Line / CRLF Header Delimiter)        │
+  ├──────────────────────────────────────────────────┤   ├──────────────────────────────────────────────────┤
+  │ [ Optional Request Body Payload ]                │   │ {"status":"authenticated","uid":1001}            │
+  └──────────────────────────────────────────────────┘   └──────────────────────────────────────────────────┘
+```
+
+---
+
+### The Fundamental CRLF Delimiter (`\r\n`)
+
+HTTP/1.1 message parsing relies strictly on the **CRLF (Carriage Return + Line Feed)** sequence:
+
+$$\mathbf{\backslash\text{r}\backslash\text{n}} \implies \text{Hex: } \mathbf{0x0D \ 0x0A} \implies \text{ASCII: } 13 \ 10$$
+
+1. **Start-Line / Request-Line:** Contains `<Method> <Request-Target> <HTTP-Version>\r\n`.
+2. **Status-Line (Response):** Contains `<HTTP-Version> <Status-Code> <Reason-Phrase>\r\n`.
+3. **Header Fields:** Each header consists of a case-insensitive field name, followed by a colon (`:`), optional leading whitespace, the field value, and terminates with `\r\n`.
+4. **Header Block Terminator:** The transition between headers and the message body is marked by **two consecutive CRLFs**:
+
+$$\mathbf{\backslash\text{r}\backslash\text{n}\backslash\text{r}\backslash\text{n}} \implies \text{Hex: } \mathbf{0x0D \ 0x0A \ 0x0D \ 0x0A}$$
+
+* Any bytes following the double CRLF are parsed as **Message Body Payload**.
+
+---
+
+## 2. HTTP Methods & Status Code Taxonomy
+
+### HTTP Methods Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        HTTP/1.1 CORE METHODS SPECIFICATION                            │
+├─────────┬──────────────┬───────────────┬───────────────────────────────────────────────┤
+│ Method  │ Safe (RFC)?  │ Idempotent?   │ Operational / Attack Surface Context          │
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│ **GET** │ ✅ **Yes**   │ ✅ **Yes**    │ Retrieves resources; MUST NOT alter server    │
+│         │              │               │ state. Payload parameters leak in URL logs!   │
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│ **POST**│ ❌ No        │ ❌ No         │ Submits data to be processed by target URI;   │
+│         │              │               │ alters server state; creates new resources.   │
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│ **HEAD**│ ✅ **Yes**   │ ✅ **Yes**    │ Identical to GET, but server returns **zero   │
+│         │              │               │ response body** (Used for fast cache audits). │
+├─────────┼──────────────┼───────────────┼──────────────────────────────────────────────┤
+│ **PUT** │ ❌ No        │ ✅ **Yes**    │ Replaces entire target resource with payload. │
+│         │              │               │ Dangerous if misconfigured (Arbitrary upload).│
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│**DELETE** ❌ No        │ ✅ **Yes**    │ Deletes specified target resource.            │
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│**OPTIONS** ✅ **Yes**  │ ✅ **Yes**    │ Queries allowed methods (**CORS Preflight**).  │
+├─────────┼──────────────┼───────────────┼───────────────────────────────────────────────┤
+│**TRACE**│ ✅ **Yes**   │ ✅ **Yes**    │ Echoes request back to client. **XST Attack:**│
+│         │              │               │ Cross-Site Tracing steals `HttpOnly` cookies! │
+└─────────┴──────────────┴───────────────┴───────────────────────────────────────────────┘
+```
+
+* **Safe:** Does not modify the primary resource state on the target server.
+* **Idempotent:** Executing the request multiple times produces the exact same server side-effects as executing it once (e.g., executing `DELETE /user/5` ten times has the same outcome as executing it once; whereas `POST /charge` ten times charges the user ten times!).
+
+---
+
+### Status Codes Reference Matrix
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        HTTP STATUS CODE ARCHITECTURAL MATRIX                           │
+├───────┬──────────────────┬─────────────────────────────────────────────────────────────┤
+│ Class │ Category         │ Critical Codes & Security Significance                      │
+├───────┼──────────────────┼─────────────────────────────────────────────────────────────┤
+│ **1xx**│ Informational    │ `101 Switching Protocols` (Upgrades HTTP to WebSockets).    │
+├───────┼──────────────────┼─────────────────────────────────────────────────────────────┤
+│ **2xx**│ Success          │ `200 OK` (Standard success).                                │
+│       │                  │ `204 No Content` (Success, no response body returned).      │
+│       │                  │ `206 Partial Content` (Range request; byte slicing).        │
+├───────┼──────────────────┼─────────────────────────────────────────────────────────────┤
+│ **3xx**│ Redirection      │ `301 Moved Permanently` (Cached permanently; breaks POST).  │
+│       │                  │ `302 Found` (Temporary redirect; legacy method changes).    │
+│       │                  │ `304 Not Modified` (Conditional GET match; cache hit).      │
+│       │                  │ `307 Temporary` / `308 Permanent` (Preserves method & body).│
+├───────┼──────────────────┼─────────────────────────────────────────────────────────────┤
+│ **4xx**│ Client Error     │ `400 Bad Request` (Malformed syntax; smuggling indicator).  │
+│       │                  │ `401 Unauthorized` (Missing/invalid authentication).        │
+│       │                  │ `403 Forbidden` (Authenticated, but access denied).         │
+│       │                  │ `404 Not Found` (Resource does not exist).                  │
+│       │                  │ `405 Method Not Allowed` (e.g., GET on a POST-only route).  │
+├───────┼──────────────────┼─────────────────────────────────────────────────────────────┤
+│ **5xx**│ Server Error     │ `500 Internal Server Error` (Unhandled exception / crash).  │
+│       │                  │ `502 Bad Gateway` (Upstream reverse proxy connection failed)│
+│       │                  │ `504 Gateway Timeout` (Backend failed to answer proxy).     │
+└───────┴──────────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Message Framing: `Content-Length` vs `Transfer-Encoding`
+
+HTTP/1.1 uses persistent TCP connections (`Connection: keep-alive`) by default to eliminate handshake latency. To delineate where one request ends and the next begins over a single TCP stream, HTTP provides two distinct framing mechanisms:
+
+```
+    CONTENT-LENGTH FRAMING (Static Length)          CHUNKED TRANSFER ENCODING (Streaming)
+  ┌────────────────────────────────────────┐     ┌────────────────────────────────────────┐
+  │ Content-Length: 15\r\n                 │     │ Transfer-Encoding: chunked\r\n         │
+  │ \r\n                                   │     │ \r\n                                   │
+  │ 15 Bytes of Exact Payload Data Buffer  │     │ 4\r\n                                  │
+  └────────────────────────────────────────┘     │ Wiki\r\n (4-byte chunk)                │
+                                                 │ 5\r\n                                  │
+                                                 │ pedia\r\n (5-byte chunk)               │
+                                                 │ 0\r\n\r\n (Terminating Chunk: Size 0)  │
+                                                 └────────────────────────────────────────┘
+```
+
+---
+
+### 1. `Content-Length` Header
+Specifies the exact decimal byte size of the payload body. The receiving parser reads exactly $N$ bytes following the double CRLF and stops.
+* **Risk:** If `Content-Length` is smaller than the actual body, trailing data leaks into the next request. If larger, the connection hangs waiting for bytes until timeout.
+
+---
+
+### 2. `Transfer-Encoding: chunked`
+Used when the total content size is unknown at transmission start (e.g., dynamic database streams):
+* The body is split into a series of chunks.
+* Each chunk begins with the **chunk size in hexadecimal**, followed by `\r\n`, followed by the chunk data, followed by `\r\n`.
+* **The Termination Sentinel:** The stream ends with a **zero-sized chunk: `0\r\n\r\n`**.
+
+---
+
+## 4. The Request Smuggling Engine (CL.TE / TE.CL Desynchronization)
+
+**HTTP Request Smuggling (RFC 7230 Ambiguity Exploitation)** occurs when an edge reverse proxy (e.g., Cloudflare, Nginx, AWS ALB) and a back-end web application server parse request boundaries differently.
+
+```
+       [ ATTACKER ]
+            │
+            │ Injects crafted request containing BOTH:
+            │ - Content-Length: 13
+            │ - Transfer-Encoding: chunked
+            ▼
+    ┌──────────────────────┐
+    │  FRONT-END PROXY     │ ──> Parses via CONTENT-LENGTH (Sees single 13-byte request)
+    └──────────┬───────────┘
+               │
+               ▼ (Forwards continuous TCP stream to Backend)
+    ┌──────────────────────┐
+    │  BACK-END SERVER     │ ──> Parses via CHUNKED ENCODING (Sees zero chunk '0' and stops early!)
+    └──────────┬───────────┘
+               │
+               ▼
+   [ TRAILING DATA SMUGGLED INTO BACKEND QUEUE! ]
+   The leftover bytes prefix the NEXT innocent user's request, hijacking their session!
+```
+
+---
+
+### The Two Primary Smuggling Desynchronizations
+
+| Smuggling Variant | Front-End Parser Behavior | Back-End Parser Behavior | Exploitation Vector |
+| :--- | :--- | :--- | :--- |
+| **`CL.TE`** | Uses `Content-Length` | Uses `Transfer-Encoding` | Frontend forwards entire payload; Backend stops early at `0\r\n\r\n`, leaving trailing data as a smuggled prefix. |
+| **`TE.CL`** | Uses `Transfer-Encoding` | Uses `Content-Length` | Frontend processes chunks; Backend reads partial bytes, leaving remaining chunk data in the socket pipeline. |
+
+> 🛡️ **RFC 7230 §3.3.3 Mandate:**  
+> If an incoming request contains **both** `Content-Length` and `Transfer-Encoding`, the server **MUST** prioritize `Transfer-Encoding` and strip or reject `Content-Length`. Servers that fail to enforce this rule are vulnerable to smuggling.
+
+---
+
+## 5. Modern Browser Security Headers Architecture
+
+Web security headers are HTTP response directives that instruct client browsers to enforce strict sandboxing, cryptographic constraints, and execution boundaries.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        ENTERPRISE SECURITY HEADERS SUITE                               │
+├──────────────────────────┬─────────────────────────────────────────────────────────────┤
+│ Security Header          │ Core Defensive Protection                                   │
+├──────────────────────────┼─────────────────────────────────────────────────────────────┤
+│ **`HSTS`**               │ Enforces HTTPS; blocks SSL Stripping attacks                │
+│ **`CSP`**                │ Restricts script sources; mitigates Cross-Site Scripting    │
+│ **`X-Frame-Options`**    │ Blocks UI Redressing and Clickjacking attacks               │
+│ **`X-Content-Type-Opt`** │ Disables MIME-Type sniffing; forces strict content types    │
+│ **`CORS`**               │ Governs cross-origin API read access permissions            │
+└──────────────────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 1. HTTP Strict Transport Security (HSTS — RFC 6797)
+Instructs the browser that the domain must **NEVER be accessed over insecure HTTP**:
+
+```http
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+```
+* `max-age=63072000`: Enforces HTTPS for 2 years ($63,072,000\text{ seconds}$).
+* `includeSubDomains`: Applies policy to all subdomains (e.g., `api.target.com`).
+* `preload`: Authorizes inclusion in Google's hardcoded browser **HSTS Preload List**, ensuring the browser uses HTTPS on the very first connection attempt (Eliminating the initial plaintext redirect window).
+
+---
+
+### 2. Content Security Policy (CSP — Level 3 Specification)
+Restricts which execution origins are permitted to load scripts, styles, images, and fonts, neutralizing **Cross-Site Scripting (XSS)**:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' https://trusted.cdn.com 'nonce-R4nd0m1337'; object-src 'none'; frame-ancestors 'none';
+```
+* `default-src 'self'`: Restricts all resources to the current origin by default.
+* `script-src ... 'nonce-R4nd0m1337'`: **Cryptographic Nonce Execution:** Only inline scripts containing matching `<script nonce="R4nd0m1337">` attributes will execute; injected attacker scripts without the secret dynamic nonce are blocked!
+* `object-src 'none'`: Disables dangerous legacy plugins (Flash, Java Applets).
+* `frame-ancestors 'none'`: Replaces `X-Frame-Options` to block Clickjacking.
+
+---
+
+### 3. Clickjacking Mitigation (`X-Frame-Options`)
+Prevents malicious websites from rendering the target page inside an invisible `<iframe>` to trick users into clicking buttons (**UI Redressing**):
+
+```http
+X-Frame-Options: DENY
+```
+* `DENY`: The page cannot be displayed in a frame, regardless of the site attempting to do so.
+* `SAMEORIGIN`: The page can only be framed by pages sharing the exact same origin (Protocol, Domain, Port).
+
+---
+
+### 4. MIME-Sniffing Defense (`X-Content-Type-Options`)
+```http
+X-Content-Type-Options: nosniff
+```
+* **The Vulnerability:** If a user uploads an image containing malicious JavaScript (`avatar.jpg`), legacy browsers "sniff" the bytes, ignore the `Content-Type: image/jpeg` header, and execute the file as JavaScript!
+* **The Defense:** `nosniff` forces the browser to adhere strictly to the declared `Content-Type`. If the MIME type does not match the file structure, execution is blocked.
+
+---
+
+### 5. Cross-Origin Resource Sharing (CORS Architecture)
+
+By default, the browser's **Same-Origin Policy (SOP)** blocks a web page on `evil.com` from reading API responses from `bank.com`. **CORS** allows servers to selectively relax this restriction.
+
+```
+       [ evil.com Web Script ] ──( fetch('https://bank.com/api/balance') )──> [ bank.com API Server ]
+                                                                                   │
+                                                                                   ▼
+       [ BROWSER SOP CHECK ] ◄──( Returns Response Headers )───────────────────────┘
+       Access-Control-Allow-Origin: https://evil.com
+       Access-Control-Allow-Credentials: true
+```
+
+#### The Deadly CORS Misconfiguration (Reflected Origin):
+```http
+# Insecure Backend Logic:
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+```
+* ⚠️ **Security Flaw:** If a server reflects the client's `Origin` header dynamically while setting `Access-Control-Allow-Credentials: true`, an attacker can host a malicious script that sends authenticated requests (including session cookies) to the API and reads private user data!
+
+---
+
