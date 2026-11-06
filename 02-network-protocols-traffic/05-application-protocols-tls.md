@@ -844,3 +844,31 @@ Access-Control-Allow-Credentials: true
 
 ---
 
+## 6. Live Protocol Diagnostics & Security Audits
+
+```bash
+# 1. Full Verbose HTTP/1.1 Transaction via curl (Inspects raw wire headers)
+curl -v -X GET https://target.com/api/health
+
+# 2. Audit All Security Headers of a Target Web Service
+curl -s -I -L https://target.com | grep -Ei "strict-transport|content-security|x-frame|x-content-type|access-control"
+
+# 3. Transmit Raw HTTP/1.1 Request over Raw Netcat Socket
+nc target.com 80 << EOF
+GET / HTTP/1.1
+Host: target.com
+Connection: close
+
+EOF
+
+# 4. Capture Live Plaintext HTTP Credentials via tcpdump
+sudo tcpdump -i eth0 -nn -A -s0 'tcp port 80 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x504f5354)'
+# 0x504F5354 = Hex for "POST". Carves POST request bodies in ASCII!
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
