@@ -1111,3 +1111,41 @@ Protocols like SMTP, POP3, and IMAP start connections in **cleartext** and upgra
 
 ---
 
+## 8. Live Cryptographic Diagnostics & OpenSSL Matrix
+
+```bash
+# 1. Connect and Inspect Live TLS 1.3 Handshake using OpenSSL
+openssl s_client -connect target.com:443 -tls1_3
+
+# 2. Inspect Server Certificate Subject, Issuer, and Expiry Dates
+openssl s_client -connect target.com:443 -servername target.com 2>/dev/null | openssl x509 -noout -text | grep -Ei "Subject:|Issuer:|Not After|DNS:"
+
+# 3. Test if Target Server Supports Insecure Legacy Protocols (TLS 1.0)
+openssl s_client -connect target.com:443 -tls1
+
+# 4. Capture Cleartext FTP Credentials on the Wire via tcpdump
+sudo tcpdump -i eth0 -nn -A -s0 'tcp port 21 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x55534552 or tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x50415353)'
+# 0x55534552 = "USER", 0x50415353 = "PASS". Instantly displays usernames and passwords!
+```
+
+---
+
+## 9. Chapter 05 Mastery Verification Matrix
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                   CHAPTER 05: COMPREHENSIVE MASTERY SCORECARD                          │
+├─────────────────┬──────────────────────────────────────────────────────────────────────┤
+│ **Part 5.1**    │ RFC 1035 DNS Binary Format, QNAME Encoding, Records (A/TXT), AXFR   │
+│ **Part 5.2**    │ Kaminsky DNS Poisoning, DNSSEC Cryptographic Chains, DHCP Starvation │
+│ **Part 5.3**    │ HTTP/1.1 CRLF Streams, Framing, Request Smuggling & Security Headers │
+│ **Part 5.4**    │ TLS 1.3 1-RTT Handshake, ECDHE Forward Secrecy, X.509 PKI & Sniffing │
+└─────────────────┴──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+<!-- =========================================================================
+   [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
+   Repository: https://github.com/iwcyberops/IW-Knowledge-Base
+   ========================================================================= -->
