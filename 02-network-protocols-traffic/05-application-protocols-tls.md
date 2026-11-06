@@ -872,3 +872,242 @@ sudo tcpdump -i eth0 -nn -A -s0 'tcp port 80 and (tcp[((tcp[12:1] & 0xf0) >> 2):
    [IW CYBER OPS] - INTERNAL RESEARCH USE ONLY
    Repository: https://github.com/iwcyberops/IW-Knowledge-Base
    ========================================================================= -->
+
+---
+
+# 🌍 Chapter 05: Application Protocols & Cryptography (Part 5.4)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: TLS 1.3 1-RTT Handshake, ECDHE Forward Secrecy, X.509 PKI & Cleartext Sniffing*
+
+---
+
+## 1. The TLS 1.3 Cryptographic Revolution (RFC 8446)
+
+**Transport Layer Security (TLS)** provides end-to-end cryptographic confidentiality, data integrity, and authentication for application layer protocols (HTTPS, DoT, SMTPS).
+
+Published in 2018, **TLS 1.3 (RFC 8446)** overhauled legacy TLS 1.2 by stripping obsolete, mathematically compromised cryptographic primitives and optimizing connection performance.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        TLS 1.2 vs TLS 1.3 ARCHITECTURAL DELTA                          │
+├───────────────────┬──────────────────────────────────┬─────────────────────────────────┤
+│ Parameter         │ Legacy TLS 1.2                   │ Modern TLS 1.3 (RFC 8446)       │
+├───────────────────┼──────────────────────────────────┼─────────────────────────────────┤
+│ **Handshake RTT** │ **2-RTT** (2 Round Trips to key) │ **1-RTT** (1 Round Trip to key) │
+│ **0-RTT Resumption│ ❌ Not Supported                 │ ✅ Supported (**0-RTT Early**)  │
+│ **Key Exchange**  │ Static RSA, DHE, ECDHE           │ **ECDHE ONLY** (Mandatory PFS)  │
+│ **Ciphers Removed**│ RC4, DES, 3DES, CBC Mode, MD5   │ **ALL PRUNED!** Only AEAD Ciphers│
+│ **Cert Encryption**│ Transmitted in **CLEARTEXT**!    │ **ENCRYPTED** across the wire!  │
+└───────────────────┴──────────────────────────────────┴─────────────────────────────────┘
+```
+
+> 🛡️ **The Death of Static RSA Key Exchange:**  
+> In TLS 1.2, servers could encrypt the pre-master secret using the server's static RSA public key. If an adversary recorded encrypted network traffic and compromised the server’s private key 5 years later, **they could retroactively decrypt 100% of historical historical sessions**. TLS 1.3 bans static RSA entirely!
+
+---
+
+## 2. Perfect Forward Secrecy & Ephemeral Diffie-Hellman (ECDHE)
+
+To guarantee **Perfect Forward Secrecy (PFS)**, TLS 1.3 mandates **ECDHE (Elliptic Curve Diffie-Hellman Ephemeral)**:
+* Every single session generates a unique, **one-time ephemeral key pair**.
+* Once the session terminates, the private keys are wiped from memory.
+* **Security Guarantee:** Compromising the server's permanent identity certificate in the future provides **zero capability to decrypt past intercepted traffic**.
+
+---
+
+### The Discrete Elliptic Curve Diffie-Hellman Math (Curve25519)
+
+1. Client and Server agree on a standardized base curve generator point **$G$** on an elliptic curve:
+
+$$y^2 = x^3 + ax + b$$
+
+2. **Client Key Generation:**
+   * Generates private random scalar integer: $d_A$
+   * Computes public point: $\mathbf{Q_A = d_A \times G}$
+3. **Server Key Generation:**
+   * Generates private random scalar integer: $d_B$
+   * Computes public point: $\mathbf{Q_B = d_B \times G}$
+4. **Public Point Exchange:** Client transmits $Q_A$ in `ClientHello`; Server transmits $Q_B$ in `ServerHello`.
+5. **Shared Secret Derivation:**
+   $$\mathbf{\text{Shared Secret } K = d_A \times Q_B = d_B \times Q_A = d_A \times d_B \times G}$$
+* An eavesdropper observing the public points $Q_A$ and $Q_B$ on the wire cannot calculate $K$ without solving the mathematically intractable **Elliptic Curve Discrete Logarithm Problem (ECDLP)**.
+
+---
+
+## 3. The Modern TLS 1.3 1-RTT Handshake Sequence
+
+TLS 1.3 achieves 1-RTT latency by enabling the client to **speculatively transmit its Diffie-Hellman public key share inside the initial connection request**:
+
+```
+       [ CLIENT ]                                                          [ SERVER ]
+           │                                                                   │
+           │ 1. ClientHello                                                    │
+           │    - Supported Cipher Suites (AEAD)                               │
+           │    - Supported TLS Versions (0x0304 = 1.3)                        │
+           │    - Key_Share: Client Public Key (QA on X25519)                  │
+           │    - Server Name Indication (SNI): target.com                     │
+           ├──────────────────────────────────────────────────────────────────►│
+           │                                                                   │ ──┐ Generates Ephemeral
+           │                                                                   │   │ Key Pair (dB, QB)
+           │                                                                   │   │ Derives Shared Secret!
+           │ 2. ServerHello                                                    │ ◄─┘
+           │    - Selected Cipher: TLS_AES_256_GCM_SHA384                      │
+           │    - Key_Share: Server Public Key (QB on X25519)                  │
+           │◄──────────────────────────────────────────────────────────────────┤
+           │ ═════════════════════════════════════════════════════════════════ │
+           │ ◄─── ALL SUBSEQUENT WIRE PACKETS ARE 100% ENCRYPTED! ───────────► │
+           │ ═════════════════════════════════════════════════════════════════ │
+           │                                                                   │
+           │ 3. {EncryptedExtensions}                                          │
+           │ 4. {Certificate} (Server X.509 Identity Chain)                    │
+           │ 5. {CertificateVerify} (Digital Signature over Handshake)         │
+           │ 6. {Finished} (HMAC validating handshake integrity)               │
+           │◄──────────────────────────────────────────────────────────────────┤
+           │                                                                   │
+           │ 7. {Finished} (Client confirms handshake integrity)               │
+           │ 8. [Application Data: "GET /api HTTP/1.1"] (Encrypted Payload)    │
+           ├──────────────────────────────────────────────────────────────────►│
+           ▼                                                                   ▼
+       (Full-Duplex Encrypted Application Communication Established in 1-RTT!)
+```
+
+---
+
+## 4. X.509 Public Key Infrastructure (PKI) & Chain of Trust
+
+While Diffie-Hellman encrypts the channel, it is vulnerable to Man-in-the-Middle interception unless the server's identity is authenticated using **X.509 Digital Certificates (RFC 5280)**.
+
+```
+       ┌────────────────────────────────────────────────────────┐
+       │             ROOT CERTIFICATE AUTHORITY (CA)            │
+       │  (Self-Signed; Hardcoded into OS/Browser Trust Store)  │
+       │  Example: DigiCert Global Root CA                      │
+       └──────────────────────────┬─────────────────────────────┘
+                                  │ Cryptographically Signs
+                                  ▼
+       ┌────────────────────────────────────────────────────────┐
+       │           INTERMEDIATE CERTIFICATE AUTHORITY           │
+       │  Example: DigiCert SHA2 Secure Server CA               │
+       └──────────────────────────┬─────────────────────────────┘
+                                  │ Cryptographically Signs
+                                  ▼
+       ┌────────────────────────────────────────────────────────┐
+       │             LEAF / SERVER CERTIFICATE                  │
+       │  Subject: target.com | SAN: www.target.com             │
+       │  Hosts the Public Key used to verify the server        │
+       └────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Critical Fields inside an X.509 Certificate
+
+* **Subject:** The entity identifying the certificate (e.g., `CN = target.com`).
+* **Subject Alternative Name (SAN):** Modern standard defining all authorized hostnames/IPs covered by the certificate (`DNS:target.com`, `DNS:*.target.com`, `IP:10.10.14.5`).
+* **Validity Period:** Strict `Not Before` and `Not After` timestamps.
+* **Public Key Info:** Algorithm identifier (e.g., RSA 4096 or ECDSA P-256) and raw public key bytes.
+* **Certificate Signature:** The issuer's cryptographic hash signature verifying certificate authenticity:
+
+$$\mathbf{\text{Signature} = \text{Sign}_{\text{CA\_PrivateKey}}(\text{SHA256}(\text{Certificate\_Body}))}$$
+
+---
+
+### Certificate Revocation Architecture
+
+If a server’s private key is leaked or stolen, the certificate must be invalidated before its expiration date:
+1. **CRL (Certificate Revocation List):** A periodic list of revoked serial numbers published by the CA. Inefficient and slow to download.
+2. **OCSP (Online Certificate Status Protocol — RFC 6960):** Real-time API query to the CA: *"Is Serial #1337 revoked?"* (Slows connection and leaks user browsing habits to the CA).
+3. **OCSP Stapling (RFC 6066):** The **server itself queries the CA periodically**, acquires a time-stamped, CA-signed OCSP response, and "staples" it directly into the TLS handshake, eliminating client latency and privacy leaks.
+
+---
+
+## 5. Metadata Leakage: Server Name Indication (SNI) vs ECH
+
+When multiple secure websites share a single IP address (virtual hosting on cloud infrastructure), the server needs to know **which certificate to present** before TLS decryption occurs.
+
+* **SNI (Server Name Indication — RFC 6066):** The client includes the target domain name in the initial `ClientHello` packet.
+* **The Privacy Flaw:** Because `ClientHello` occurs *before* encryption keys are established, **the SNI domain name (`target.com`) is transmitted in plain, unencrypted text across the wire!**
+
+```
+ [ Client ] ──( Cleartest ClientHello: SNI = "target.com" )──> [ ISP / Censor / GFW Intercepts! ]
+```
+
+> 🔴 **Censorship & Eavesdropping Reality:**  
+> Nation-state firewalls (e.g., the Great Firewall of China) and corporate security monitors inspect cleartext SNI headers to block forbidden domains or log user traffic, even if the session payload is fully encrypted!
+
+---
+
+### Modern Defense: Encrypted Client Hello (ECH)
+**ECH (IETF Draft)** encrypts the entire SNI and sensitive client parameters using an asymmetric public key published in the target domain’s **DNS HTTPS Resource Record (Type 65)**, preventing on-path network sniffers from seeing the destination hostname.
+
+---
+
+## 6. Cleartext Protocols & Lateral Insecurity
+
+Transmitting unencrypted application traffic across switched or routed networks exposes raw credentials to trivial packet sniffing (via ARP Poisoning or promiscuous capture).
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        CLEARTEXT PROTOCOL THREAT TAXONOMY                              │
+├─────────────┬──────────┬───────────────────────┬───────────────────────────────────────┤
+│ Protocol    │ Port     │ Encrypted Alternative │ Captured Sensitive Wire Artifacts     │
+├─────────────┼──────────┼───────────────────────┼───────────────────────────────────────┤
+│ **Telnet**  │ TCP 23   │ SSH (TCP 22)          │ Plaintext keystrokes, Root passwords  │
+│ **FTP**     │ TCP 21   │ SFTP (SSH) / FTPS     │ `USER <name>` and `PASS <cleartext>`  │
+│ **HTTP**    │ TCP 80   │ HTTPS (TCP 443)       │ Session cookies, Authorization tokens │
+│ **SMTP**    │ TCP 25   │ SMTPS (TCP 465)       │ `AUTH LOGIN` Base64 cleartext creds   │
+│ **POP3**    │ TCP 110  │ POP3S (TCP 995)       │ `USER` / `PASS` email credentials     │
+│ **IMAP**    │ TCP 143  │ IMAPS (TCP 993)       │ `LOGIN` command credentials & emails  │
+└─────────────┴──────────┴───────────────────────┴───────────────────────────────────────┘
+```
+
+---
+
+### The STARTTLS Downgrade Attack (STRIPTLS)
+
+Protocols like SMTP, POP3, and IMAP start connections in **cleartext** and upgrade to TLS on-the-fly using the command **`STARTTLS`**:
+
+```
+ [ Client ] ───( Plaintext: "EHLO" )──────────────────────────────────────────> [ Server ]
+ [ Client ] <──( Plaintext: "250-STARTTLS Supported" )───────────────────────── [ Server ]
+                                       ▲
+                                       │ [ MITM Attacker Intercepts! ]
+                                       │ Strips the line "250-STARTTLS" from the packet!
+                                       ▼
+ [ Client ] ───( "Server does not support encryption. Sending password in plain text!" )
+ [ Client ] ───( "AUTH LOGIN: admin / Password123" )──────────────────────────> [ Stolen! ]
+```
+
+---
+
+## 7. Offensive Exploitation & TLS Threat Vectors
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        TLS ATTACK TAXONOMY                             │
+├──────────────────────────┬─────────────────────────────────────────────┤
+│ 1. SSL Stripping         │ Downgrading HTTPS to HTTP transparently     │
+│ 2. 0-RTT Replay Attacks  │ Replaying early data requests to duplicate  │
+│                          │ financial / API transactions                │
+│ 3. Rogue CA Injection    │ Installing malicious root certificates to   │
+│                          │ intercept and decrypt TLS enterprise traffic│
+└──────────────────────────┴─────────────────────────────────────────────┘
+```
+
+---
+
+### Vector 1: SSL Stripping (Moxie Marlinspike)
+* **Mechanics:** When a user types `bank.com` into a browser, the browser initially attempts an insecure HTTP request (`http://bank.com`), expecting the server to return an HTTP `301 Redirect` to `https://bank.com`.
+* **Exploitation (sslstrip):** An attacker executing an ARP MITM intercepts the redirect. The attacker communicates with the server over HTTPS, but bridges the connection back to the victim over **insecure plaintext HTTP**, stripping all encryption!
+* 🛡️ **Defense:** **HSTS Preloading** forces the browser to open HTTPS directly on turn #1, killing SSL stripping.
+
+---
+
+### Vector 2: TLS 1.3 0-RTT Replay Attacks
+* **Mechanics:** TLS 1.3 allows returning clients to send application data inside the first message (**0-RTT Early Data**) before the handshake finishes.
+* **The Vulnerability:** Because 0-RTT data is encrypted under a cached pre-shared key, an attacker can **sniff the 0-RTT packet and replay it** to the server multiple times! If the replayed request is an API call (`POST /transfer?amount=1000`), the server may execute the financial transfer multiple times!
+
+---
+
