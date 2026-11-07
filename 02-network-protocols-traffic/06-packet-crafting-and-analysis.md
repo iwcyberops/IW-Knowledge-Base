@@ -5,3 +5,11 @@
    MODULE: Month 02 — Network Protocols, Packet Dissection & Traffic Engineering
    DOCUMENT: Chapter 06 — Packet Crafting & Traffic Analysis Tools (Part 6.1)
    ========================================================================= -->
+   
+# 🛠️ Chapter 06: Packet Crafting & Traffic Analysis Tools (Part 6.1)
+
+> **IW Cyber Ops Research Vault | Module 02: Network Protocols & Traffic Engineering**  
+> *Author: Muhammad Imran Wakeel (@iwcyberops)*  
+> *Track: Wireshark Internal Architecture, Dissector Engines, BPF vs Display Filters & File Carving*
+
+---
